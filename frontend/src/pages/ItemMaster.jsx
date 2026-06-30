@@ -1,9 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "../api/axios";
 
+const unitOptions = [
+  { value: "pcs", label: "No / Pcs" },
+  { value: "kg", label: "Kg" },
+  { value: "gram", label: "Gram" },
+  { value: "litre", label: "Litre" },
+  { value: "ml", label: "ML" },
+  { value: "quintal", label: "Quintal / Qt" },
+  { value: "ton", label: "Ton" },
+  { value: "packet", label: "Packet" },
+  { value: "box", label: "Box" },
+];
+
 const emptyForm = {
   name: "",
   sku: "",
+  unit: "pcs",
   points: "",
 };
 
@@ -42,6 +55,18 @@ const getItemPoints = (item) =>
   item?.points_value ??
   item?.points_required ??
   0;
+
+const getItemUnit = (item) =>
+  item?.unit ||
+  item?.quantity_unit ||
+  item?.uom ||
+  item?.default_unit ||
+  "pcs";
+
+const getUnitLabel = (value) => {
+  const unit = unitOptions.find((option) => option.value === value);
+  return unit ? unit.label : value || "No / Pcs";
+};
 
 export default function ItemMaster({ onBack }) {
   const [items, setItems] = useState([]);
@@ -118,11 +143,13 @@ export default function ItemMaster({ onBack }) {
       const name = String(getItemName(item)).toLowerCase();
       const sku = String(item?.sku || "").toLowerCase();
       const points = String(getItemPoints(item)).toLowerCase();
+      const unit = String(getUnitLabel(getItemUnit(item))).toLowerCase();
 
       return (
         name.includes(search) ||
         sku.includes(search) ||
-        points.includes(search)
+        points.includes(search) ||
+        unit.includes(search)
       );
     });
   }, [items, searchText]);
@@ -148,6 +175,7 @@ export default function ItemMaster({ onBack }) {
     setFormData({
       name: getItemName(item),
       sku: item?.sku || "",
+      unit: getItemUnit(item),
       points: getItemPoints(item),
     });
 
@@ -170,12 +198,18 @@ export default function ItemMaster({ onBack }) {
       return;
     }
 
+    if (!formData.unit) {
+      showToast("Unit is required.", "error");
+      return;
+    }
+
     if (formData.points === "" || Number(formData.points) <= 0) {
       showToast("Points must be greater than 0.", "error");
       return;
     }
 
     const pointsValue = Number(formData.points);
+    const unitValue = formData.unit;
 
     const payload = {
       item_name: formData.name.trim(),
@@ -188,6 +222,11 @@ export default function ItemMaster({ onBack }) {
       points: pointsValue,
       points_value: pointsValue,
       points_required: pointsValue,
+
+      unit: unitValue,
+      quantity_unit: unitValue,
+      uom: unitValue,
+      default_unit: unitValue,
     };
 
     if (storeId) {
@@ -256,7 +295,8 @@ export default function ItemMaster({ onBack }) {
             <div className="asi-title-wrap">
               <h1 className="asi-title">Item Master</h1>
               <p className="asi-subtitle">
-                Create items and assign loyalty points to each item.
+                Create items, select unit, and assign loyalty points to each
+                item.
               </p>
             </div>
           </div>
@@ -276,7 +316,7 @@ export default function ItemMaster({ onBack }) {
             type="text"
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            placeholder="Search item name, SKU, points..."
+            placeholder="Search item name, SKU, unit, points..."
           />
         </div>
 
@@ -287,6 +327,7 @@ export default function ItemMaster({ onBack }) {
                 <tr>
                   <th>Item Name</th>
                   <th>SKU</th>
+                  <th>Unit</th>
                   <th>Points</th>
                   <th>Action</th>
                 </tr>
@@ -295,13 +336,13 @@ export default function ItemMaster({ onBack }) {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td className="asi-empty-cell" colSpan="4">
+                    <td className="asi-empty-cell" colSpan="5">
                       Loading items...
                     </td>
                   </tr>
                 ) : filteredItems.length === 0 ? (
                   <tr>
-                    <td className="asi-empty-cell" colSpan="4">
+                    <td className="asi-empty-cell" colSpan="5">
                       No items found. Add your first item.
                     </td>
                   </tr>
@@ -309,12 +350,14 @@ export default function ItemMaster({ onBack }) {
                   filteredItems.map((item) => {
                     const itemName = getItemName(item) || "-";
                     const itemSku = item?.sku || "-";
+                    const itemUnit = getUnitLabel(getItemUnit(item));
                     const itemPoints = getItemPoints(item);
 
                     return (
                       <tr key={item.id}>
                         <td className="name">{itemName}</td>
                         <td>{itemSku}</td>
+                        <td className="unit">{itemUnit}</td>
                         <td className="points">{itemPoints} pts</td>
                         <td>
                           <div className="asi-action-group">
@@ -354,6 +397,7 @@ export default function ItemMaster({ onBack }) {
               filteredItems.map((item) => {
                 const itemName = getItemName(item) || "-";
                 const itemSku = item?.sku || "-";
+                const itemUnit = getUnitLabel(getItemUnit(item));
                 const itemPoints = getItemPoints(item);
 
                 return (
@@ -371,6 +415,11 @@ export default function ItemMaster({ onBack }) {
                       <div>
                         <span>SKU</span>
                         <strong>{itemSku}</strong>
+                      </div>
+
+                      <div>
+                        <span>Unit</span>
+                        <strong>{itemUnit}</strong>
                       </div>
 
                       <div>
@@ -433,7 +482,7 @@ export default function ItemMaster({ onBack }) {
                   />
                 </div>
 
-                <div className="asi-two-column-grid">
+                <div className="asi-three-column-grid">
                   <div className="asi-form-group">
                     <label>SKU Optional</label>
 
@@ -445,6 +494,23 @@ export default function ItemMaster({ onBack }) {
                       placeholder="Enter SKU"
                       disabled={saving}
                     />
+                  </div>
+
+                  <div className="asi-form-group">
+                    <label>Unit *</label>
+
+                    <select
+                      name="unit"
+                      value={formData.unit}
+                      onChange={handleChange}
+                      disabled={saving}
+                    >
+                      {unitOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="asi-form-group">
@@ -639,7 +705,7 @@ const itemMasterCss = `
 
   .asi-table {
     width: 100%;
-    min-width: 760px;
+    min-width: 820px;
     border-collapse: collapse;
   }
 
@@ -667,6 +733,11 @@ const itemMasterCss = `
 
   .asi-table td.name {
     color: #111827;
+    font-weight: 900;
+  }
+
+  .asi-table td.unit {
+    color: #475569;
     font-weight: 900;
   }
 
@@ -756,7 +827,7 @@ const itemMasterCss = `
   .asi-mobile-detail-grid {
     margin-top: 14px;
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
   }
 
@@ -812,7 +883,7 @@ const itemMasterCss = `
   }
 
   .asi-modal-box {
-    width: min(620px, 100%);
+    width: min(720px, 100%);
     max-height: 90vh;
     overflow-y: auto;
     background: #ffffff;
@@ -855,9 +926,9 @@ const itemMasterCss = `
     min-width: 0;
   }
 
-  .asi-two-column-grid {
+  .asi-three-column-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 16px;
   }
 
@@ -867,7 +938,8 @@ const itemMasterCss = `
     color: #334155;
   }
 
-  .asi-form-group input {
+  .asi-form-group input,
+  .asi-form-group select {
     width: 100%;
     border: 1px solid #cbd5e1;
     border-radius: 9px;
@@ -877,6 +949,11 @@ const itemMasterCss = `
     background-color: #ffffff;
     color: #111827;
     box-sizing: border-box;
+    min-height: 44px;
+  }
+
+  .asi-form-group select {
+    cursor: pointer;
   }
 
   .asi-modal-actions {
@@ -916,6 +993,10 @@ const itemMasterCss = `
 
     .asi-top-bar {
       width: 100%;
+    }
+
+    .asi-three-column-grid {
+      grid-template-columns: 1fr 1fr;
     }
   }
 
@@ -975,7 +1056,7 @@ const itemMasterCss = `
       padding: 20px;
     }
 
-    .asi-two-column-grid {
+    .asi-three-column-grid {
       grid-template-columns: 1fr;
       gap: 0;
     }

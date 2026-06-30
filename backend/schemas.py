@@ -113,11 +113,13 @@ class CustomerCreate(BaseModel):
     store_id: Optional[int] = None
 
     address: Optional[str] = None
+    aadhaar_number: Optional[str] = None
+    pan_number: Optional[str] = None
     bank_account_number: Optional[str] = None
     bank_name: Optional[str] = None
     ifsc_code: Optional[str] = None
 
-    points_balance: int = 0
+    points_balance: float = 0.0
 
 
 class CustomerUpdate(BaseModel):
@@ -125,11 +127,13 @@ class CustomerUpdate(BaseModel):
     phone_number: Optional[str] = None
 
     address: Optional[str] = None
+    aadhaar_number: Optional[str] = None
+    pan_number: Optional[str] = None
     bank_account_number: Optional[str] = None
     bank_name: Optional[str] = None
     ifsc_code: Optional[str] = None
 
-    points_balance: Optional[int] = None
+    points_balance: Optional[float] = None
     is_active: Optional[bool] = None
 
 
@@ -141,11 +145,13 @@ class CustomerResponse(BaseModel):
     phone_number: str
 
     address: Optional[str] = None
+    aadhaar_number: Optional[str] = None
+    pan_number: Optional[str] = None
     bank_account_number: Optional[str] = None
     bank_name: Optional[str] = None
     ifsc_code: Optional[str] = None
 
-    points_balance: int
+    points_balance: float
     is_active: Optional[bool] = True
     created_at: Optional[datetime] = None
 
@@ -160,21 +166,43 @@ class LoyaltyItemCreate(BaseModel):
     item_name: str
     sku: Optional[str] = None
 
-    # Frontend field
-    points: int
+    # Frontend field: points per selected unit.
+    points: float
 
     store_id: Optional[int] = None
 
-    # Kept for old backend/database compatibility
+    # Unit selected in Item Master.
+    unit: Optional[str] = "pcs"
+
+    # Extra compatibility aliases if frontend sends these.
+    quantity_unit: Optional[str] = None
+    uom: Optional[str] = None
+    default_unit: Optional[str] = None
+
+    # Kept for old backend/database compatibility.
     category: Optional[str] = "item"
 
     # Database field. Backend stores item points here.
     per_point_amount: Optional[float] = None
 
     @model_validator(mode="after")
-    def sync_points_to_per_point_amount(self):
+    def sync_points_and_unit(self):
         if self.per_point_amount is None or self.per_point_amount <= 0:
             self.per_point_amount = float(self.points or 0)
+
+        selected_unit = (
+            self.unit
+            or self.quantity_unit
+            or self.uom
+            or self.default_unit
+            or "pcs"
+        )
+
+        self.unit = selected_unit
+        self.quantity_unit = selected_unit
+        self.uom = selected_unit
+        self.default_unit = selected_unit
+
         return self
 
 
@@ -182,20 +210,42 @@ class LoyaltyItemUpdate(BaseModel):
     item_name: Optional[str] = None
     sku: Optional[str] = None
 
-    # Frontend field
-    points: Optional[int] = None
+    # Frontend field: points per selected unit.
+    points: Optional[float] = None
+
+    # Unit selected in Item Master.
+    unit: Optional[str] = None
+
+    # Extra compatibility aliases if frontend sends these.
+    quantity_unit: Optional[str] = None
+    uom: Optional[str] = None
+    default_unit: Optional[str] = None
 
     is_active: Optional[bool] = None
 
-    # Kept for old backend/database compatibility
+    # Kept for old backend/database compatibility.
     category: Optional[str] = None
     per_point_amount: Optional[float] = None
 
     @model_validator(mode="after")
-    def sync_points_to_per_point_amount(self):
+    def sync_points_and_unit(self):
         if self.points is not None:
             if self.per_point_amount is None or self.per_point_amount <= 0:
                 self.per_point_amount = float(self.points)
+
+        selected_unit = (
+            self.unit
+            or self.quantity_unit
+            or self.uom
+            or self.default_unit
+        )
+
+        if selected_unit:
+            self.unit = selected_unit
+            self.quantity_unit = selected_unit
+            self.uom = selected_unit
+            self.default_unit = selected_unit
+
         return self
 
 
@@ -206,10 +256,13 @@ class LoyaltyItemResponse(BaseModel):
     item_name: str
     sku: Optional[str] = None
 
-    # Frontend compatibility field
-    points: Optional[int] = 0
+    # Unit selected in Item Master.
+    unit: Optional[str] = "pcs"
 
-    # Actual database value used as points per unit
+    # Frontend compatibility field.
+    points: Optional[float] = 0.0
+
+    # Actual database value used as points per unit.
     per_point_amount: Optional[float] = None
 
     category: Optional[str] = None
@@ -220,8 +273,17 @@ class LoyaltyItemResponse(BaseModel):
     @classmethod
     def add_points_from_per_point_amount(cls, data: Any):
         if isinstance(data, dict):
-            if not data.get("points"):
-                data["points"] = int(data.get("per_point_amount") or 0)
+            if data.get("points") is None:
+                data["points"] = float(data.get("per_point_amount") or 0)
+
+            if not data.get("unit"):
+                data["unit"] = (
+                    data.get("quantity_unit")
+                    or data.get("uom")
+                    or data.get("default_unit")
+                    or "pcs"
+                )
+
             return data
 
         per_point_amount = getattr(data, "per_point_amount", None)
@@ -231,7 +293,8 @@ class LoyaltyItemResponse(BaseModel):
             "store_id": getattr(data, "store_id", None),
             "item_name": getattr(data, "item_name", None),
             "sku": getattr(data, "sku", None),
-            "points": int(per_point_amount or 0),
+            "unit": getattr(data, "unit", "pcs") or "pcs",
+            "points": float(per_point_amount or 0),
             "per_point_amount": per_point_amount,
             "category": getattr(data, "category", None),
             "is_active": getattr(data, "is_active", True),
@@ -256,7 +319,7 @@ class PointAssignRequest(BaseModel):
 
 class ManualPointRequest(BaseModel):
     customer_id: int
-    points: int
+    points: float
     note: Optional[str] = None
 
 
@@ -266,15 +329,15 @@ class ManualPointRequest(BaseModel):
 class RewardEntryItemCreate(BaseModel):
     loyalty_item_id: Optional[int] = None
 
-    # Frontend sometimes sends item_id
+    # Frontend sometimes sends item_id.
     item_id: Optional[int] = None
 
     unit: str
     quantity: float
 
-    # Backend calculates from item master, so optional
-    points_per_unit: Optional[float] = 0
-    total_points: Optional[int] = 0
+    # Backend calculates from Item Master, so optional.
+    points_per_unit: Optional[float] = 0.0
+    total_points: Optional[float] = 0.0
 
     @model_validator(mode="after")
     def sync_item_id(self):
@@ -290,28 +353,26 @@ class RewardEntryItemCreate(BaseModel):
         return self
 
 
-class RewardEntryBulkCreate(BaseModel):
-    customer_id: int
-    items: List[RewardEntryItemCreate]
-
-    # Backend calculates this, so optional
-    total_points: Optional[int] = 0
-
-    note: Optional[str] = None
-
-
-class RewardEntryItemUpdate(BaseModel):
+class RewardEntryItemAdd(BaseModel):
     loyalty_item_id: Optional[int] = None
 
-    # Frontend may send item_id
+    # Frontend may send item_id.
     item_id: Optional[int] = None
 
     unit: str
     quantity: float
+
+    points_per_unit: Optional[float] = 0.0
+    total_points: Optional[float] = 0.0
+
     note: Optional[str] = None
 
+    # Optional date support.
+    entry_date: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
     @model_validator(mode="after")
-    def sync_item_id(self):
+    def sync_item_id_and_date(self):
         if self.loyalty_item_id is None and self.item_id is not None:
             self.loyalty_item_id = self.item_id
 
@@ -320,6 +381,60 @@ class RewardEntryItemUpdate(BaseModel):
 
         if self.loyalty_item_id is None:
             raise ValueError("loyalty_item_id or item_id is required")
+
+        if self.entry_date is None and self.created_at is not None:
+            self.entry_date = self.created_at
+
+        return self
+
+
+class RewardEntryBulkCreate(BaseModel):
+    customer_id: int
+    items: List[RewardEntryItemCreate]
+
+    # Optional manual old entry date from frontend.
+    entry_date: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    # Backend calculates this, so optional.
+    total_points: Optional[float] = 0.0
+
+    note: Optional[str] = None
+
+    @model_validator(mode="after")
+    def sync_entry_date(self):
+        if self.entry_date is None and self.created_at is not None:
+            self.entry_date = self.created_at
+        return self
+
+
+class RewardEntryItemUpdate(BaseModel):
+    loyalty_item_id: Optional[int] = None
+
+    # Frontend may send item_id.
+    item_id: Optional[int] = None
+
+    unit: str
+    quantity: float
+    note: Optional[str] = None
+
+    # Optional date edit from Transaction History.
+    entry_date: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    @model_validator(mode="after")
+    def sync_item_id_and_date(self):
+        if self.loyalty_item_id is None and self.item_id is not None:
+            self.loyalty_item_id = self.item_id
+
+        if self.item_id is None and self.loyalty_item_id is not None:
+            self.item_id = self.loyalty_item_id
+
+        if self.loyalty_item_id is None:
+            raise ValueError("loyalty_item_id or item_id is required")
+
+        if self.entry_date is None and self.created_at is not None:
+            self.entry_date = self.created_at
 
         return self
 
@@ -334,7 +449,7 @@ class RewardEntryItemResponse(BaseModel):
     unit: str
     quantity: float
     points_per_unit: float
-    total_points: int
+    total_points: float
     created_at: Optional[datetime] = None
 
     class Config:
@@ -346,7 +461,7 @@ class RewardEntryResponse(BaseModel):
     store_id: Optional[int] = None
     customer_id: int
     customer_name: Optional[str] = None
-    total_points: int
+    total_points: float
     note: Optional[str] = None
     created_at: datetime
     items: List[RewardEntryItemResponse] = Field(default_factory=list)
@@ -367,7 +482,7 @@ class RewardEntryListRowResponse(BaseModel):
     item_id: Optional[int] = None
     item_name: Optional[str] = None
 
-    # Needed for Transaction History edit
+    # Needed for Transaction History edit.
     transaction_id: Optional[int] = None
     point_transaction_id: Optional[int] = None
     reward_entry_item_id: Optional[int] = None
@@ -375,13 +490,53 @@ class RewardEntryListRowResponse(BaseModel):
     unit: Optional[str] = None
     quantity: Optional[float] = None
     points_per_unit: Optional[float] = None
-    total_points: Optional[int] = None
+    total_points: Optional[float] = None
 
     note: Optional[str] = None
     created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+
+class RewardEntryGroupedItemResponse(BaseModel):
+    id: int
+    reward_entry_item_id: int
+    transaction_id: Optional[int] = None
+    point_transaction_id: Optional[int] = None
+
+    loyalty_item_id: Optional[int] = None
+    item_id: Optional[int] = None
+    item_name: Optional[str] = None
+
+    unit: Optional[str] = None
+    quantity: Optional[float] = None
+    points_per_unit: Optional[float] = None
+    total_points: Optional[float] = None
+    created_at: Optional[datetime] = None
+
+
+class RewardEntryGroupedResponse(BaseModel):
+    id: int
+    reward_entry_id: int
+    transaction_group_id: int
+
+    store_id: Optional[int] = None
+    customer_id: int
+    customer_name: Optional[str] = None
+    phone_number: Optional[str] = None
+
+    type: str = "POINTS_CREDIT"
+    transaction_type: str = "EARN"
+
+    item_count: int
+    total_points: float
+    points: float
+
+    note: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    items: List[RewardEntryGroupedItemResponse] = Field(default_factory=list)
 
 
 # ----------------------------------------
@@ -395,18 +550,18 @@ class PointTransactionResponse(BaseModel):
     customer_id: int
     loyalty_item_id: Optional[int] = None
 
-    # Needed for editing product / unit / quantity
+    # Needed for editing product / unit / quantity.
     reward_entry_item_id: Optional[int] = None
     reward_entry_id: Optional[int] = None
     point_transaction_id: Optional[int] = None
 
     transaction_type: str
 
-    # Frontend compatibility
+    # Frontend compatibility.
     type: Optional[str] = None
     description: Optional[str] = None
 
-    points: int
+    points: float
     amount: Optional[float] = None
     note: Optional[str] = None
     created_at: datetime
@@ -419,16 +574,30 @@ class PointTransactionResponse(BaseModel):
 # New Reward Entry edit should use RewardEntryItemUpdate.
 class PointTransactionUpdate(BaseModel):
     customer_id: int
-    points: int
+    points: float
 
-    # Frontend sends type as POINTS_CREDIT / POINTS_DEBIT
+    # Frontend sends type as POINTS_CREDIT / POINTS_DEBIT.
     type: Optional[str] = None
 
-    # Backend compatibility
+    # Backend compatibility.
     transaction_type: Optional[str] = None
 
     note: Optional[str] = None
     description: Optional[str] = None
+
+    # Optional future date edit support for manual transactions.
+    entry_date: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    @model_validator(mode="after")
+    def sync_entry_date(self):
+        if self.entry_date is None and self.created_at is not None:
+            self.entry_date = self.created_at
+        return self
+
+
+class TransactionDeleteRequest(BaseModel):
+    password: str
 
 
 # ----------------------------------------
@@ -436,7 +605,7 @@ class PointTransactionUpdate(BaseModel):
 # ----------------------------------------
 class PayoutCreate(BaseModel):
     customer_id: int
-    points_redeemed: int
+    points_redeemed: float
     payout_value: Optional[float] = None
     note: Optional[str] = None
 
@@ -445,7 +614,7 @@ class PayoutResponse(BaseModel):
     id: int
     store_id: Optional[int] = None
     customer_id: int
-    points_redeemed: int
+    points_redeemed: float
     payout_value: Optional[float] = None
     status: str
     note: Optional[str] = None
@@ -462,14 +631,14 @@ class LeaderboardResponse(BaseModel):
     customer_id: int
     name: str
     phone_number: str
-    points_balance: int
+    points_balance: float
 
     class Config:
         from_attributes = True
 
 
 class LeaderboardCustomerUpdate(BaseModel):
-    points_balance: int
+    points_balance: float
     note: Optional[str] = None
 
 

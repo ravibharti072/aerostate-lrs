@@ -27,6 +27,8 @@ function CustomerDirectory({ onBack }) {
     name: "",
     phone_number: "",
     address: "",
+    aadhaar_number: "",
+    pan_number: "",
     bank_account_number: "",
     ifsc_code: "",
     bank_name: "",
@@ -67,12 +69,27 @@ function CustomerDirectory({ onBack }) {
     navigate("/dashboard");
   };
 
+  const maskAadhaar = (value) => {
+    const clean = String(value || "").replace(/\D/g, "");
+
+    if (!clean) return "-";
+    if (clean.length <= 4) return clean;
+
+    return `XXXX XXXX ${clean.slice(-4)}`;
+  };
+
+  const formatPan = (value) => {
+    return String(value || "").trim().toUpperCase();
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
 
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: name === "pan_number" || name === "ifsc_code"
+        ? value.toUpperCase()
+        : value,
     }));
   };
 
@@ -89,6 +106,8 @@ function CustomerDirectory({ onBack }) {
       name: customer.name || "",
       phone_number: customer.phone_number || "",
       address: customer.address || "",
+      aadhaar_number: customer.aadhaar_number || "",
+      pan_number: customer.pan_number || "",
       bank_account_number: customer.bank_account_number || "",
       ifsc_code: customer.ifsc_code || "",
       bank_name: customer.bank_name || "",
@@ -111,6 +130,8 @@ function CustomerDirectory({ onBack }) {
       name: formData.name.trim(),
       phone_number: formData.phone_number.trim(),
       address: formData.address.trim(),
+      aadhaar_number: formData.aadhaar_number.trim(),
+      pan_number: formData.pan_number.trim().toUpperCase(),
       bank_account_number: formData.bank_account_number.trim(),
       ifsc_code: formData.ifsc_code.trim().toUpperCase(),
       bank_name: formData.bank_name.trim(),
@@ -152,15 +173,23 @@ function CustomerDirectory({ onBack }) {
     const name = String(customer.name || "").toLowerCase();
     const phone = String(customer.phone_number || "").toLowerCase();
     const address = String(customer.address || "").toLowerCase();
+    const aadhaar = String(customer.aadhaar_number || "").toLowerCase();
+    const pan = String(customer.pan_number || "").toLowerCase();
     const bankName = String(customer.bank_name || "").toLowerCase();
     const ifsc = String(customer.ifsc_code || "").toLowerCase();
+    const accountNumber = String(
+      customer.bank_account_number || ""
+    ).toLowerCase();
 
     return (
       name.includes(search) ||
       phone.includes(search) ||
       address.includes(search) ||
+      aadhaar.includes(search) ||
+      pan.includes(search) ||
       bankName.includes(search) ||
-      ifsc.includes(search)
+      ifsc.includes(search) ||
+      accountNumber.includes(search)
     );
   });
 
@@ -178,8 +207,8 @@ function CustomerDirectory({ onBack }) {
           <div className="asc-title-wrap">
             <h2 className="asc-title">Customer Directory</h2>
             <p className="asc-subtitle">
-              Register customers, manage details, and maintain payout bank
-              information.
+              Register customers, manage identity details, and maintain payout
+              bank information.
             </p>
           </div>
 
@@ -195,7 +224,7 @@ function CustomerDirectory({ onBack }) {
 
             <input
               type="text"
-              placeholder="Search name, phone, address, bank..."
+              placeholder="Search name, phone, Aadhaar, PAN, bank..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="asc-search-input"
@@ -221,6 +250,8 @@ function CustomerDirectory({ onBack }) {
                 <th>Customer Name</th>
                 <th>Phone Number</th>
                 <th>Address</th>
+                <th>Aadhaar No</th>
+                <th>PAN No</th>
                 <th>Bank Name</th>
                 <th>Account Number</th>
                 <th>IFSC Code</th>
@@ -231,7 +262,7 @@ function CustomerDirectory({ onBack }) {
             <tbody>
               {!loading && filteredCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="asc-empty-cell">
+                  <td colSpan="9" className="asc-empty-cell">
                     No registered customers yet.
                   </td>
                 </tr>
@@ -249,6 +280,10 @@ function CustomerDirectory({ onBack }) {
                     <td>{customer.phone_number || "N/A"}</td>
 
                     <td>{customer.address || "-"}</td>
+
+                    <td>{maskAadhaar(customer.aadhaar_number)}</td>
+
+                    <td>{formatPan(customer.pan_number) || "-"}</td>
 
                     <td>{customer.bank_name || "-"}</td>
 
@@ -309,6 +344,16 @@ function CustomerDirectory({ onBack }) {
 
                 <div className="asc-mobile-bank-grid">
                   <div>
+                    <span>Aadhaar No</span>
+                    <strong>{maskAadhaar(customer.aadhaar_number)}</strong>
+                  </div>
+
+                  <div>
+                    <span>PAN No</span>
+                    <strong>{formatPan(customer.pan_number) || "-"}</strong>
+                  </div>
+
+                  <div>
                     <span>Bank Name</span>
                     <strong>{customer.bank_name || "-"}</strong>
                   </div>
@@ -349,30 +394,32 @@ function CustomerDirectory({ onBack }) {
               </div>
 
               <form onSubmit={handleSubmit} className="asc-form">
-                <div className="asc-field-group">
-                  <label>Customer Name</label>
+                <div className="asc-grid-two">
+                  <div className="asc-field-group">
+                    <label>Customer Name *</label>
 
-                  <input
-                    required
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    placeholder="Enter full name"
-                    autoComplete="off"
-                  />
-                </div>
+                    <input
+                      required
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      placeholder="Enter full name"
+                      autoComplete="off"
+                    />
+                  </div>
 
-                <div className="asc-field-group">
-                  <label>Phone Number</label>
+                  <div className="asc-field-group">
+                    <label>Phone Number *</label>
 
-                  <input
-                    required
-                    name="phone_number"
-                    value={formData.phone_number}
-                    onChange={handleInputChange}
-                    placeholder="Enter phone number"
-                    autoComplete="off"
-                  />
+                    <input
+                      required
+                      name="phone_number"
+                      value={formData.phone_number}
+                      onChange={handleInputChange}
+                      placeholder="Enter phone number"
+                      autoComplete="off"
+                    />
+                  </div>
                 </div>
 
                 <div className="asc-field-group">
@@ -385,6 +432,32 @@ function CustomerDirectory({ onBack }) {
                     placeholder="Enter customer address"
                     rows="3"
                   />
+                </div>
+
+                <div className="asc-grid-two">
+                  <div className="asc-field-group">
+                    <label>Aadhaar Card Number Optional</label>
+
+                    <input
+                      name="aadhaar_number"
+                      value={formData.aadhaar_number}
+                      onChange={handleInputChange}
+                      placeholder="Enter Aadhaar number"
+                      autoComplete="off"
+                    />
+                  </div>
+
+                  <div className="asc-field-group">
+                    <label>PAN Number Optional</label>
+
+                    <input
+                      name="pan_number"
+                      value={formData.pan_number}
+                      onChange={handleInputChange}
+                      placeholder="Enter PAN number"
+                      autoComplete="off"
+                    />
+                  </div>
                 </div>
 
                 <div className="asc-grid-two">
@@ -602,7 +675,7 @@ const customerDirectoryCss = `
 
   .asc-table {
     width: 100%;
-    min-width: 1100px;
+    min-width: 1320px;
     text-align: left;
     border-collapse: collapse;
   }
@@ -776,7 +849,7 @@ const customerDirectoryCss = `
     background-color: #ffffff;
     border-radius: 16px;
     padding: 28px;
-    width: min(92vw, 720px);
+    width: min(92vw, 760px);
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: 0 20px 60px rgba(0,0,0,0.2);

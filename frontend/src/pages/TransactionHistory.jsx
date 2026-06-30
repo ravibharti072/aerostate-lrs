@@ -11,15 +11,80 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiEdit2,
+  FiTrash2,
   FiX,
   FiSave,
   FiPackage,
+  FiLock,
 } from "react-icons/fi";
 import api from "../api/axios";
 
 const ITEMS_PER_PAGE = 20;
+const GROUPED_REWARD_LIMIT = 500;
 
-const UNITS = ["No / Pcs", "Kg", "Gram", "Liter", "ML"];
+const unitOptions = [
+  { value: "pcs", label: "No / Pcs" },
+  { value: "kg", label: "Kg" },
+  { value: "gram", label: "Gram" },
+  { value: "litre", label: "Litre" },
+  { value: "liter", label: "Liter" },
+  { value: "ml", label: "ML" },
+  { value: "quintal", label: "Quintal / Qt" },
+  { value: "qt", label: "Quintal / Qt" },
+  { value: "ton", label: "Ton" },
+  { value: "packet", label: "Packet" },
+  { value: "box", label: "Box" },
+];
+
+const normalizeList = (data) => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.records)) return data.records;
+  if (Array.isArray(data?.transactions)) return data.transactions;
+  if (Array.isArray(data?.customers)) return data.customers;
+  if (Array.isArray(data?.entries)) return data.entries;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+};
+
+const normalizeUnit = (unit) => {
+  const cleanUnit = String(unit || "").trim().toLowerCase();
+
+  if (!cleanUnit) return "pcs";
+  if (cleanUnit === "liter") return "litre";
+  if (cleanUnit === "qt") return "quintal";
+  if (cleanUnit === "no / pcs") return "pcs";
+  if (cleanUnit === "no/pcs") return "pcs";
+
+  return cleanUnit;
+};
+
+const getUnitLabelFromValue = (unitValue) => {
+  const normalized = normalizeUnit(unitValue);
+  const foundUnit = unitOptions.find(
+    (unit) => normalizeUnit(unit.value) === normalized
+  );
+
+  return foundUnit ? foundUnit.label : unitValue || "No / Pcs";
+};
+
+const roundToTwo = (value) => {
+  const numberValue = Number(value || 0);
+
+  if (!Number.isFinite(numberValue)) return 0;
+
+  return Math.round(numberValue * 100) / 100;
+};
+
+const formatPoints = (value) => {
+  const numberValue = Number(value || 0);
+
+  if (!Number.isFinite(numberValue)) return "0";
+
+  return Number.isInteger(numberValue)
+    ? String(numberValue)
+    : numberValue.toFixed(2).replace(/\.?0+$/, "");
+};
 
 function TransactionHistory({ onBack }) {
   const [transactions, setTransactions] = useState([]);
@@ -32,16 +97,23 @@ function TransactionHistory({ onBack }) {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState({ type: "", message: "" });
   const [currentPage, setCurrentPage] = useState(1);
+
+  const [selectedDetailsTxn, setSelectedDetailsTxn] = useState(null);
 
   const [editingTxn, setEditingTxn] = useState(null);
   const [editForm, setEditForm] = useState({
     loyalty_item_id: "",
-    unit: "No / Pcs",
+    unit: "",
     quantity: "",
+    entry_date: "",
     note: "",
   });
+
+  const [deletingTxn, setDeletingTxn] = useState(null);
+  const [deletePassword, setDeletePassword] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -68,16 +140,6 @@ function TransactionHistory({ onBack }) {
     }, 3000);
   };
 
-  const normalizeList = (data) => {
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.items)) return data.items;
-    if (Array.isArray(data?.records)) return data.records;
-    if (Array.isArray(data?.transactions)) return data.transactions;
-    if (Array.isArray(data?.customers)) return data.customers;
-    if (Array.isArray(data?.data)) return data.data;
-    return [];
-  };
-
   const getErrorMessage = (error, fallback) => {
     const detail = error.response?.data?.detail;
 
@@ -88,34 +150,6 @@ function TransactionHistory({ onBack }) {
     if (typeof detail === "string") return detail;
 
     return fallback;
-  };
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-
-      const [txnRes, customerRes, itemRes] = await Promise.all([
-        api.get("/transactions/"),
-        api.get("/customers/"),
-        api.get("/loyalty/items"),
-      ]);
-
-      setTransactions(normalizeList(txnRes.data));
-      setCustomers(normalizeList(customerRes.data));
-      setItems(normalizeList(itemRes.data));
-    } catch (error) {
-      console.error("Transaction history fetch error:", error);
-      setTransactions([]);
-      setCustomers([]);
-      setItems([]);
-
-      showToast(
-        "error",
-        getErrorMessage(error, "Unable to load transaction history.")
-      );
-    } finally {
-      setLoading(false);
-    }
   };
 
   const normalizeTxnType = (txn) => {
@@ -152,6 +186,9 @@ function TransactionHistory({ onBack }) {
   const isPointCredit = (txn) => normalizeTxnType(txn) === "POINTS_CREDIT";
   const isPointDebit = (txn) => normalizeTxnType(txn) === "POINTS_DEBIT";
 
+  const isGroupedRewardTxn = (txn) =>
+    Boolean(txn?.is_grouped_reward || Array.isArray(txn?.items));
+
   const getCustomer = (customerId) =>
     customers.find((customer) => Number(customer.id) === Number(customerId));
 
@@ -169,37 +206,218 @@ function TransactionHistory({ onBack }) {
   const getItemById = (itemId) =>
     items.find((item) => Number(item.id) === Number(itemId));
 
+  const getItemNameFromItem = (item) => item?.item_name || item?.name || "-";
+
   const getItemName = (txn) => {
     if (txn.item_name) return txn.item_name;
 
     const itemId = txn.loyalty_item_id || txn.item_id;
     const item = getItemById(itemId);
 
-    return item?.item_name || item?.name || "-";
+    return getItemNameFromItem(item);
   };
+
+  const getItemUnit = (itemId) => {
+    const item = getItemById(itemId);
+
+    return normalizeUnit(
+      item?.unit ||
+        item?.quantity_unit ||
+        item?.uom ||
+        item?.default_unit ||
+        "pcs"
+    );
+  };
+
+  const getTxnUnit = (txn) => {
+    const itemId = txn.loyalty_item_id || txn.item_id;
+    return normalizeUnit(txn.unit || getItemUnit(itemId) || "pcs");
+  };
+
+  const getUnitLabel = (unitValue) => getUnitLabelFromValue(unitValue);
 
   const getItemPoints = (itemId) => {
     const item = getItemById(itemId);
 
     return Number(
-      item?.points ||
-        item?.per_point_amount ||
+      item?.per_point_amount ||
+        item?.points ||
         item?.points_value ||
         item?.points_required ||
         0
     );
   };
 
-  const formatDate = (dateValue) =>
-    dateValue
-      ? new Date(dateValue).toLocaleString("en-IN", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "-";
+  const formatDate = (dateValue) => {
+    if (!dateValue) return "-";
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) return "-";
+
+    return date.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const toDateInputValue = (dateValue) => {
+    if (!dateValue) return "";
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) return "";
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  };
+
+  const getTxnId = (txn) =>
+    txn?.transaction_id || txn?.point_transaction_id || txn?.id || "";
+
+  const getRewardEntryId = (txn) =>
+    txn?.reward_entry_id || txn?.transaction_group_id || txn?.id || "";
+
+  const getTxnKey = (txn, index) => {
+    if (isGroupedRewardTxn(txn)) {
+      return `reward-entry-${getRewardEntryId(txn) || index}`;
+    }
+
+    return `transaction-${getTxnId(txn) || index}`;
+  };
+
+  const getGroupedItems = (txn) => {
+    if (Array.isArray(txn?.items)) return txn.items;
+
+    if (txn?.loyalty_item_id || txn?.item_name) {
+      return [
+        {
+          id: txn.reward_entry_item_id || txn.id,
+          reward_entry_item_id: txn.reward_entry_item_id,
+          transaction_id: getTxnId(txn),
+          point_transaction_id: getTxnId(txn),
+          loyalty_item_id: txn.loyalty_item_id || txn.item_id,
+          item_id: txn.loyalty_item_id || txn.item_id,
+          item_name: getItemName(txn),
+          unit: getTxnUnit(txn),
+          quantity: txn.quantity,
+          points_per_unit: txn.points_per_unit,
+          total_points: txn.points || txn.total_points || 0,
+          created_at: txn.created_at,
+        },
+      ];
+    }
+
+    return [];
+  };
+
+  const getItemPreviewNames = (txn) => {
+    const names = getGroupedItems(txn).map((item) => item.item_name || "-");
+
+    if (!names.length) return "-";
+
+    if (names.length <= 3) return names.join(", ");
+
+    return `${names.slice(0, 3).join(", ")} +${names.length - 3} more`;
+  };
+
+  const getTotalItems = (txn) =>
+    Number(txn.item_count || getGroupedItems(txn).length || 0);
+
+  const getTxnPoints = (txn) => Number(txn.points || txn.total_points || 0);
+
+  const buildItemTxnFromGroupedItem = (groupTxn, item) => ({
+    ...item,
+    id: item.transaction_id || item.point_transaction_id || item.id,
+    transaction_id: item.transaction_id || item.point_transaction_id || "",
+    point_transaction_id: item.point_transaction_id || item.transaction_id || "",
+    reward_entry_id: getRewardEntryId(groupTxn),
+    reward_entry_item_id: item.reward_entry_item_id || item.id,
+    customer_id: groupTxn.customer_id,
+    customer_name: getCustomerName(groupTxn),
+    phone_number: getCustomerPhone(groupTxn),
+    type: "POINTS_CREDIT",
+    transaction_type: "EARN",
+    points: Number(item.total_points || 0),
+    total_points: Number(item.total_points || 0),
+    unit: item.unit,
+    quantity: item.quantity,
+    points_per_unit: item.points_per_unit,
+    created_at: item.created_at || groupTxn.created_at,
+    note: groupTxn.note || item.note || "",
+  });
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+
+      const [txnRes, rewardEntryRes, customerRes, itemRes] =
+        await Promise.allSettled([
+          api.get("/transactions/"),
+          api.get(`/reward-entries/grouped?limit=${GROUPED_REWARD_LIMIT}`),
+          api.get("/customers/"),
+          api.get("/loyalty/items"),
+        ]);
+
+      const rawTransactions =
+        txnRes.status === "fulfilled" ? normalizeList(txnRes.value.data) : [];
+
+      const groupedRewardEntries =
+        rewardEntryRes.status === "fulfilled"
+          ? normalizeList(rewardEntryRes.value.data)
+          : [];
+
+      const customerList =
+        customerRes.status === "fulfilled"
+          ? normalizeList(customerRes.value.data)
+          : [];
+
+      const itemList =
+        itemRes.status === "fulfilled" ? normalizeList(itemRes.value.data) : [];
+
+      const groupedRewardRecords = groupedRewardEntries.map((entry) => ({
+        ...entry,
+        id: entry.reward_entry_id || entry.transaction_group_id || entry.id,
+        is_grouped_reward: true,
+        type: "POINTS_CREDIT",
+        transaction_type: "EARN",
+        points: Number(entry.total_points || entry.points || 0),
+      }));
+
+      const otherTransactions = rawTransactions.filter((txn) => {
+        const isRewardItemTransaction = Boolean(
+          txn.reward_entry_item_id || txn.reward_entry_id
+        );
+
+        const isEarnTxn = normalizeTxnType(txn) === "POINTS_CREDIT";
+
+        // Reward-entry item transactions are displayed through grouped records above.
+        return !(isRewardItemTransaction && isEarnTxn);
+      });
+
+      setTransactions([...groupedRewardRecords, ...otherTransactions]);
+      setCustomers(customerList);
+      setItems(itemList);
+    } catch (error) {
+      console.error("Transaction history fetch error:", error);
+      setTransactions([]);
+      setCustomers([]);
+      setItems([]);
+
+      showToast(
+        "error",
+        getErrorMessage(error, "Unable to load transaction history.")
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const transactionRecords = useMemo(() => {
     return transactions.filter((txn) => {
@@ -214,13 +432,23 @@ function TransactionHistory({ onBack }) {
     return transactionRecords.filter((txn) => {
       const name = getCustomerName(txn).toLowerCase();
       const phone = String(getCustomerPhone(txn)).toLowerCase();
-      const itemName = String(getItemName(txn)).toLowerCase();
+      const itemNames = getGroupedItems(txn)
+        .map((item) => String(item.item_name || ""))
+        .join(" ")
+        .toLowerCase();
+      const unitNames = getGroupedItems(txn)
+        .map((item) => String(getUnitLabel(item.unit)))
+        .join(" ")
+        .toLowerCase();
+      const date = String(formatDate(txn.created_at)).toLowerCase();
       const type = normalizeTxnType(txn);
 
       const matchesSearch = search
         ? name.includes(search) ||
           phone.includes(search) ||
-          itemName.includes(search)
+          itemNames.includes(search) ||
+          unitNames.includes(search) ||
+          date.includes(search)
         : true;
 
       const matchesCustomer =
@@ -259,10 +487,7 @@ function TransactionHistory({ onBack }) {
     () =>
       transactionRecords
         .filter(isPointCredit)
-        .reduce(
-          (sum, txn) => sum + Number(txn.points || txn.total_points || 0),
-          0
-        ),
+        .reduce((sum, txn) => sum + getTxnPoints(txn), 0),
     [transactionRecords]
   );
 
@@ -270,14 +495,11 @@ function TransactionHistory({ onBack }) {
     () =>
       transactionRecords
         .filter(isPointDebit)
-        .reduce(
-          (sum, txn) => sum + Number(txn.points || txn.total_points || 0),
-          0
-        ),
+        .reduce((sum, txn) => sum + getTxnPoints(txn), 0),
     [transactionRecords]
   );
 
-  const netPoints = totalEarned - totalUsed;
+  const netPoints = roundToTwo(totalEarned - totalUsed);
 
   const goToPage = (page) => {
     setCurrentPage(Math.min(Math.max(page, 1), totalPages || 1));
@@ -291,17 +513,21 @@ function TransactionHistory({ onBack }) {
     if (!canEditRewardItem(txn)) {
       showToast(
         "error",
-        "Only Reward Entry transactions can be edited by product and quantity."
+        "Open transaction details and edit individual item rows."
       );
       return;
     }
 
+    const itemId = txn.loyalty_item_id || txn.item_id || "";
+    const autoUnit = getItemUnit(itemId) || getTxnUnit(txn) || "pcs";
+
     setEditingTxn(txn);
 
     setEditForm({
-      loyalty_item_id: txn.loyalty_item_id || txn.item_id || "",
-      unit: txn.unit || "No / Pcs",
+      loyalty_item_id: itemId,
+      unit: autoUnit,
       quantity: txn.quantity || "",
+      entry_date: toDateInputValue(txn.created_at),
       note: txn.description || txn.note || "",
     });
   };
@@ -311,14 +537,34 @@ function TransactionHistory({ onBack }) {
 
     setEditForm({
       loyalty_item_id: "",
-      unit: "No / Pcs",
+      unit: "",
       quantity: "",
+      entry_date: "",
       note: "",
     });
   };
 
+  const openDeleteModal = (txn) => {
+    setDeletingTxn(txn);
+    setDeletePassword("");
+  };
+
+  const closeDeleteModal = () => {
+    setDeletingTxn(null);
+    setDeletePassword("");
+  };
+
   const handleEditChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === "loyalty_item_id") {
+      setEditForm((prev) => ({
+        ...prev,
+        loyalty_item_id: value,
+        unit: getItemUnit(value),
+      }));
+      return;
+    }
 
     setEditForm((prev) => ({
       ...prev,
@@ -330,11 +576,15 @@ function TransactionHistory({ onBack }) {
     return getItemPoints(editForm.loyalty_item_id);
   }, [editForm.loyalty_item_id, items]);
 
+  const selectedItemUnitLabel = useMemo(() => {
+    return getUnitLabel(editForm.unit || getItemUnit(editForm.loyalty_item_id));
+  }, [editForm.unit, editForm.loyalty_item_id, items]);
+
   const calculatedTotalPoints = useMemo(() => {
     const quantity = Number(editForm.quantity || 0);
     const points = Number(selectedItemPoints || 0);
 
-    return Math.round(quantity * points);
+    return roundToTwo(quantity * points);
   }, [editForm.quantity, selectedItemPoints]);
 
   const updateTransaction = async (e) => {
@@ -350,8 +600,13 @@ function TransactionHistory({ onBack }) {
       return;
     }
 
-    if (!editForm.unit) {
-      showToast("error", "Please select unit.");
+    const autoUnit = editForm.unit || getItemUnit(editForm.loyalty_item_id);
+
+    if (!autoUnit) {
+      showToast(
+        "error",
+        "Unit not found. Please update this item in Item Master."
+      );
       return;
     }
 
@@ -367,14 +622,21 @@ function TransactionHistory({ onBack }) {
         `/transactions/reward-entry-items/${editingTxn.reward_entry_item_id}`,
         {
           loyalty_item_id: Number(editForm.loyalty_item_id),
-          unit: editForm.unit,
+          unit: autoUnit,
           quantity: Number(editForm.quantity),
+          entry_date: editForm.entry_date
+            ? `${editForm.entry_date}T12:00:00`
+            : null,
+          created_at: editForm.entry_date
+            ? `${editForm.entry_date}T12:00:00`
+            : null,
           note: editForm.note,
         }
       );
 
-      showToast("success", "Transaction updated successfully.");
+      showToast("success", "Transaction item updated successfully.");
       closeEditModal();
+      setSelectedDetailsTxn(null);
       fetchData();
     } catch (error) {
       console.error("Update transaction error:", error);
@@ -388,13 +650,57 @@ function TransactionHistory({ onBack }) {
     }
   };
 
+  const deleteTransaction = async (e) => {
+    e.preventDefault();
+
+    const transactionId = getTxnId(deletingTxn);
+
+    if (!transactionId) {
+      showToast("error", "Invalid transaction selected.");
+      return;
+    }
+
+    if (!deletePassword.trim()) {
+      showToast("error", "Please enter your password.");
+      return;
+    }
+
+    try {
+      setDeleting(true);
+
+      await api.delete(`/transactions/${transactionId}`, {
+        data: {
+          password: deletePassword,
+        },
+      });
+
+      showToast("success", "Transaction item deleted successfully.");
+      closeDeleteModal();
+      setSelectedDetailsTxn(null);
+      fetchData();
+    } catch (error) {
+      console.error("Delete transaction error:", error);
+
+      showToast(
+        "error",
+        getErrorMessage(error, "Unable to delete transaction.")
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <>
       <style>{transactionHistoryCss}</style>
 
       <div className="ast-page">
         {toast.message && (
-          <div className={`ast-toast ${toast.type === "error" ? "error" : "success"}`}>
+          <div
+            className={`ast-toast ${
+              toast.type === "error" ? "error" : "success"
+            }`}
+          >
             {toast.message}
           </div>
         )}
@@ -412,7 +718,8 @@ function TransactionHistory({ onBack }) {
             </h2>
 
             <p className="ast-subtitle">
-              View earned and used points with customer, item, unit, and quantity details.
+              Reward entries are grouped as one transaction. Click View Details
+              to edit or delete individual item rows.
             </p>
           </div>
         </div>
@@ -422,7 +729,7 @@ function TransactionHistory({ onBack }) {
             icon={<FiPlusCircle size={20} color="#059669" />}
             iconClass="green"
             label="Points Earned"
-            value={totalEarned}
+            value={roundToTwo(totalEarned)}
             valueClass="green"
           />
 
@@ -430,7 +737,7 @@ function TransactionHistory({ onBack }) {
             icon={<FiMinusCircle size={20} color="#dc2626" />}
             iconClass="red"
             label="Points Used"
-            value={totalUsed}
+            value={roundToTwo(totalUsed)}
             valueClass="red"
           />
 
@@ -448,6 +755,7 @@ function TransactionHistory({ onBack }) {
             label="Transactions"
             value={transactionRecords.length}
             valueClass="purple"
+            plain
           />
         </div>
 
@@ -457,7 +765,7 @@ function TransactionHistory({ onBack }) {
 
             <input
               type="text"
-              placeholder="Search customer, phone or item..."
+              placeholder="Search date, customer, phone, item or unit..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="ast-search-input"
@@ -515,9 +823,8 @@ function TransactionHistory({ onBack }) {
                   <th>Date</th>
                   <th>Customer</th>
                   <th>Phone</th>
-                  <th>Item</th>
-                  <th>Unit</th>
-                  <th className="right">Qty</th>
+                  <th>Items</th>
+                  <th className="right">Total Items</th>
                   <th>Type</th>
                   <th className="right">Points</th>
                   <th className="center">Action</th>
@@ -527,57 +834,84 @@ function TransactionHistory({ onBack }) {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="9" className="ast-empty-cell">
+                    <td colSpan="8" className="ast-empty-cell">
                       Loading...
                     </td>
                   </tr>
                 ) : paginatedTransactions.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="ast-empty-cell">
+                    <td colSpan="8" className="ast-empty-cell">
                       No transaction records found.
                     </td>
                   </tr>
                 ) : (
                   paginatedTransactions.map((txn, index) => {
                     const credit = isPointCredit(txn);
-                    const points = Number(txn.points || txn.total_points || 0);
-                    const editable = canEditRewardItem(txn);
+                    const points = getTxnPoints(txn);
 
                     return (
-                      <tr key={txn.id || index}>
+                      <tr key={getTxnKey(txn, index)}>
                         <td>{formatDate(txn.created_at)}</td>
                         <td className="customer">{getCustomerName(txn)}</td>
                         <td>{getCustomerPhone(txn)}</td>
-                        <td>{getItemName(txn)}</td>
-                        <td>{txn.unit || "-"}</td>
-                        <td className="right">{txn.quantity || "-"}</td>
+                        <td>
+                          <span className="ast-items-preview">
+                            {getItemPreviewNames(txn)}
+                          </span>
+                        </td>
+                        <td className="right">{getTotalItems(txn) || "-"}</td>
 
                         <td>
-                          <span className={`ast-type-badge ${credit ? "credit" : "debit"}`}>
+                          <span
+                            className={`ast-type-badge ${
+                              credit ? "credit" : "debit"
+                            }`}
+                          >
                             {credit ? "Earned" : "Used"}
                           </span>
                         </td>
 
-                        <td className={`points right ${credit ? "credit" : "debit"}`}>
+                        <td
+                          className={`points right ${
+                            credit ? "credit" : "debit"
+                          }`}
+                        >
                           {credit ? "+" : "-"}
-                          {points}
+                          {formatPoints(points)}
                         </td>
 
                         <td className="center">
-                          {editable ? (
+                          <div className="ast-action-buttons">
                             <button
                               type="button"
-                              onClick={() => openEditModal(txn)}
-                              className="ast-edit-btn"
+                              onClick={() => setSelectedDetailsTxn(txn)}
+                              className="ast-view-btn"
                             >
-                              <FiEdit2 size={14} />
-                              Edit
+                              View Details
                             </button>
-                          ) : (
-                            <span className="ast-not-editable">
-                              No item edit
-                            </span>
-                          )}
+
+                            {!isGroupedRewardTxn(txn) && canEditRewardItem(txn) && (
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(txn)}
+                                className="ast-edit-btn"
+                              >
+                                <FiEdit2 size={14} />
+                                Edit
+                              </button>
+                            )}
+
+                            {!isGroupedRewardTxn(txn) && (
+                              <button
+                                type="button"
+                                onClick={() => openDeleteModal(txn)}
+                                className="ast-delete-btn"
+                              >
+                                <FiTrash2 size={14} />
+                                Delete
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -597,11 +931,10 @@ function TransactionHistory({ onBack }) {
             ) : (
               paginatedTransactions.map((txn, index) => {
                 const credit = isPointCredit(txn);
-                const points = Number(txn.points || txn.total_points || 0);
-                const editable = canEditRewardItem(txn);
+                const points = getTxnPoints(txn);
 
                 return (
-                  <div key={txn.id || index} className="ast-mobile-card">
+                  <div key={getTxnKey(txn, index)} className="ast-mobile-card">
                     <div className="ast-mobile-card-top">
                       <div>
                         <p className="ast-mobile-date">
@@ -615,38 +948,47 @@ function TransactionHistory({ onBack }) {
                         </p>
                       </div>
 
-                      <span className={`ast-type-badge ${credit ? "credit" : "debit"}`}>
+                      <span
+                        className={`ast-type-badge ${
+                          credit ? "credit" : "debit"
+                        }`}
+                      >
                         {credit ? "Earned" : "Used"}
                       </span>
                     </div>
 
                     <div className="ast-mobile-detail-grid">
                       <div>
-                        <span>Item</span>
-                        <strong>{getItemName(txn)}</strong>
+                        <span>Items</span>
+                        <strong>{getItemPreviewNames(txn)}</strong>
                       </div>
 
                       <div>
-                        <span>Unit</span>
-                        <strong>{txn.unit || "-"}</strong>
-                      </div>
-
-                      <div>
-                        <span>Quantity</span>
-                        <strong>{txn.quantity || "-"}</strong>
+                        <span>Total Items</span>
+                        <strong>{getTotalItems(txn) || "-"}</strong>
                       </div>
 
                       <div>
                         <span>Points</span>
-                        <strong className={credit ? "credit-text" : "debit-text"}>
+                        <strong
+                          className={credit ? "credit-text" : "debit-text"}
+                        >
                           {credit ? "+" : "-"}
-                          {points}
+                          {formatPoints(points)}
                         </strong>
                       </div>
                     </div>
 
                     <div className="ast-mobile-actions">
-                      {editable ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDetailsTxn(txn)}
+                        className="ast-view-btn mobile"
+                      >
+                        View Details
+                      </button>
+
+                      {!isGroupedRewardTxn(txn) && canEditRewardItem(txn) && (
                         <button
                           type="button"
                           onClick={() => openEditModal(txn)}
@@ -655,10 +997,17 @@ function TransactionHistory({ onBack }) {
                           <FiEdit2 size={14} />
                           Edit Transaction
                         </button>
-                      ) : (
-                        <span className="ast-not-editable mobile">
-                          No item edit available
-                        </span>
+                      )}
+
+                      {!isGroupedRewardTxn(txn) && (
+                        <button
+                          type="button"
+                          onClick={() => openDeleteModal(txn)}
+                          className="ast-delete-btn mobile"
+                        >
+                          <FiTrash2 size={14} />
+                          Delete Transaction
+                        </button>
                       )}
                     </div>
                   </div>
@@ -700,6 +1049,125 @@ function TransactionHistory({ onBack }) {
           </div>
         )}
 
+        {selectedDetailsTxn && (
+          <div className="ast-modal-overlay">
+            <div className="ast-details-modal-box">
+              <div className="ast-modal-header">
+                <h3>Transaction Details</h3>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedDetailsTxn(null)}
+                  className="ast-close-btn"
+                >
+                  <FiX size={20} />
+                </button>
+              </div>
+
+              <div className="ast-detail-summary">
+                <div>
+                  <span>Date</span>
+                  <strong>{formatDate(selectedDetailsTxn.created_at)}</strong>
+                </div>
+
+                <div>
+                  <span>Customer</span>
+                  <strong>{getCustomerName(selectedDetailsTxn)}</strong>
+                </div>
+
+                <div>
+                  <span>Phone</span>
+                  <strong>{getCustomerPhone(selectedDetailsTxn)}</strong>
+                </div>
+
+                <div>
+                  <span>Total Points</span>
+                  <strong>
+                    {formatPoints(getTxnPoints(selectedDetailsTxn))} pts
+                  </strong>
+                </div>
+              </div>
+
+              {selectedDetailsTxn.note && (
+                <div className="ast-detail-note">
+                  <span>Note</span>
+                  <strong>{selectedDetailsTxn.note}</strong>
+                </div>
+              )}
+
+              <div className="ast-detail-items-title">
+                Items in this transaction
+              </div>
+
+              <div className="ast-detail-items-list">
+                {getGroupedItems(selectedDetailsTxn).length === 0 ? (
+                  <div className="ast-mobile-empty">No items found.</div>
+                ) : (
+                  getGroupedItems(selectedDetailsTxn).map((item, index) => {
+                    const itemTxn = buildItemTxnFromGroupedItem(
+                      selectedDetailsTxn,
+                      item
+                    );
+
+                    return (
+                      <div
+                        className="ast-detail-item-card"
+                        key={item.reward_entry_item_id || item.id || index}
+                      >
+                        <div className="ast-detail-item-main">
+                          <h4>{item.item_name || "-"}</h4>
+                          <p>
+                            {item.quantity ?? "-"} {getUnitLabel(item.unit)} ×{" "}
+                            {formatPoints(item.points_per_unit || 0)} pts / unit
+                          </p>
+                        </div>
+
+                        <strong className="ast-detail-item-points">
+                          {formatPoints(item.total_points || 0)} pts
+                        </strong>
+
+                        {itemTxn.reward_entry_item_id && (
+                          <div className="ast-detail-item-actions">
+                            <button
+                              type="button"
+                              className="ast-edit-btn"
+                              onClick={() => openEditModal(itemTxn)}
+                            >
+                              <FiEdit2 size={14} />
+                              Edit
+                            </button>
+
+                            {itemTxn.transaction_id && (
+                              <button
+                                type="button"
+                                className="ast-delete-btn"
+                                onClick={() => openDeleteModal(itemTxn)}
+                              >
+                                <FiTrash2 size={14} />
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="ast-modal-actions">
+                <button
+                  type="button"
+                  className="ast-cancel-btn"
+                  onClick={() => setSelectedDetailsTxn(null)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {editingTxn && (
           <div className="ast-modal-overlay">
             <div className="ast-modal-box">
@@ -723,10 +1191,21 @@ function TransactionHistory({ onBack }) {
                     <strong>{getCustomerName(editingTxn)}</strong>
 
                     <p>
-                      Edit product, unit and quantity. Points will update
-                      automatically.
+                      Edit date, item and quantity. Unit is automatically taken
+                      from Item Master.
                     </p>
                   </div>
+                </div>
+
+                <div className="ast-form-group">
+                  <label>Transaction Date</label>
+
+                  <input
+                    type="date"
+                    name="entry_date"
+                    value={editForm.entry_date}
+                    onChange={handleEditChange}
+                  />
                 </div>
 
                 <div className="ast-form-group">
@@ -742,8 +1221,9 @@ function TransactionHistory({ onBack }) {
 
                     {items.map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.item_name || item.name} -{" "}
-                        {item.points || item.per_point_amount || 0} pts/unit
+                        {getItemNameFromItem(item)} -{" "}
+                        {formatPoints(item.per_point_amount || item.points || 0)} pts /{" "}
+                        {getUnitLabel(getItemUnit(item.id))}
                       </option>
                     ))}
                   </select>
@@ -753,18 +1233,11 @@ function TransactionHistory({ onBack }) {
                   <div className="ast-form-group">
                     <label>Unit</label>
 
-                    <select
-                      name="unit"
-                      value={editForm.unit}
-                      onChange={handleEditChange}
-                      required
-                    >
-                      {UNITS.map((unit) => (
-                        <option key={unit} value={unit}>
-                          {unit}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="ast-readonly-unit">
+                      {editForm.loyalty_item_id
+                        ? selectedItemUnitLabel
+                        : "Select item"}
+                    </div>
                   </div>
 
                   <div className="ast-form-group">
@@ -785,12 +1258,12 @@ function TransactionHistory({ onBack }) {
                 <div className="ast-calculation-box">
                   <div>
                     <p>Points Per Unit</p>
-                    <h4>{selectedItemPoints}</h4>
+                    <h4>{formatPoints(selectedItemPoints)}</h4>
                   </div>
 
                   <div>
                     <p>Total Points</p>
-                    <h4>{calculatedTotalPoints}</h4>
+                    <h4>{formatPoints(calculatedTotalPoints)}</h4>
                   </div>
                 </div>
 
@@ -815,9 +1288,110 @@ function TransactionHistory({ onBack }) {
                     Cancel
                   </button>
 
-                  <button type="submit" className="ast-save-btn" disabled={saving}>
+                  <button
+                    type="submit"
+                    className="ast-save-btn"
+                    disabled={saving}
+                  >
                     <FiSave size={15} />
                     {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {deletingTxn && (
+          <div className="ast-modal-overlay">
+            <div className="ast-modal-box">
+              <div className="ast-modal-header">
+                <h3>Delete Transaction Item</h3>
+
+                <button
+                  type="button"
+                  onClick={closeDeleteModal}
+                  className="ast-close-btn"
+                  disabled={deleting}
+                >
+                  <FiX size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={deleteTransaction}>
+                <div className="ast-delete-warning">
+                  <FiTrash2 size={20} />
+
+                  <div>
+                    <strong>Confirm transaction item delete</strong>
+                    <p>
+                      This will delete the selected item transaction and adjust
+                      the customer point balance. Enter your password to continue.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="ast-delete-summary">
+                  <div>
+                    <span>Customer</span>
+                    <strong>{getCustomerName(deletingTxn)}</strong>
+                  </div>
+
+                  <div>
+                    <span>Date</span>
+                    <strong>{formatDate(deletingTxn.created_at)}</strong>
+                  </div>
+
+                  <div>
+                    <span>Item</span>
+                    <strong>{getItemName(deletingTxn)}</strong>
+                  </div>
+
+                  <div>
+                    <span>Points</span>
+                    <strong>
+                      {isPointCredit(deletingTxn) ? "+" : "-"}
+                      {formatPoints(
+                        deletingTxn.points || deletingTxn.total_points || 0
+                      )}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="ast-form-group">
+                  <label>Password</label>
+
+                  <div className="ast-password-box">
+                    <FiLock size={16} />
+
+                    <input
+                      type="password"
+                      value={deletePassword}
+                      onChange={(e) => setDeletePassword(e.target.value)}
+                      placeholder="Enter your password"
+                      autoComplete="current-password"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="ast-modal-actions">
+                  <button
+                    type="button"
+                    onClick={closeDeleteModal}
+                    className="ast-cancel-btn"
+                    disabled={deleting}
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="ast-confirm-delete-btn"
+                    disabled={deleting}
+                  >
+                    <FiTrash2 size={15} />
+                    {deleting ? "Deleting..." : "Delete Item"}
                   </button>
                 </div>
               </form>
@@ -829,13 +1403,15 @@ function TransactionHistory({ onBack }) {
   );
 }
 
-const SummaryCard = ({ icon, iconClass, label, value, valueClass }) => (
+const SummaryCard = ({ icon, iconClass, label, value, valueClass, plain }) => (
   <div className="ast-summary-card">
     <div className={`ast-summary-icon ${iconClass}`}>{icon}</div>
 
     <div>
       <p className="ast-summary-label">{label}</p>
-      <h3 className={`ast-summary-value ${valueClass}`}>{value}</h3>
+      <h3 className={`ast-summary-value ${valueClass}`}>
+        {plain ? value : formatPoints(value)}
+      </h3>
     </div>
   </div>
 );
@@ -1009,7 +1585,7 @@ const transactionHistoryCss = `
     position: relative;
     flex: 1;
     min-width: 240px;
-    max-width: 360px;
+    max-width: 420px;
   }
 
   .ast-search-icon {
@@ -1110,7 +1686,7 @@ const transactionHistoryCss = `
 
   .ast-table {
     width: 100%;
-    min-width: 1120px;
+    min-width: 1080px;
     text-align: left;
     border-collapse: collapse;
   }
@@ -1155,6 +1731,16 @@ const transactionHistoryCss = `
     color: #111827;
   }
 
+  .ast-items-preview {
+    display: inline-block;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #111827;
+    font-weight: 800;
+  }
+
   .ast-type-badge {
     display: inline-block;
     padding: 4px 10px;
@@ -1192,15 +1778,21 @@ const transactionHistoryCss = `
     color: #dc2626;
   }
 
-  .ast-edit-btn {
+  .ast-action-buttons {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .ast-view-btn,
+  .ast-edit-btn,
+  .ast-delete-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     padding: 7px 12px;
-    background-color: #eff6ff;
-    color: #2563eb;
-    border: 1px solid #bfdbfe;
     border-radius: 8px;
     cursor: pointer;
     font-weight: 800;
@@ -1208,10 +1800,31 @@ const transactionHistoryCss = `
     min-height: 36px;
   }
 
-  .ast-not-editable {
-    font-size: 12px;
-    color: #9ca3af;
-    font-weight: 700;
+  .ast-view-btn {
+    background-color: #eef2ff;
+    color: #4338ca;
+    border: 1px solid #c7d2fe;
+  }
+
+  .ast-view-btn.mobile {
+    width: 100%;
+  }
+
+  .ast-edit-btn {
+    background-color: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #bfdbfe;
+  }
+
+  .ast-delete-btn {
+    background-color: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+  }
+
+  .ast-delete-btn.mobile {
+    width: 100%;
+    margin-top: 10px;
   }
 
   .ast-empty-cell {
@@ -1295,20 +1908,13 @@ const transactionHistoryCss = `
   }
 
   .ast-mobile-actions {
+    display: grid;
+    gap: 10px;
     margin-top: 14px;
   }
 
   .ast-mobile-actions .ast-edit-btn {
     width: 100%;
-  }
-
-  .ast-not-editable.mobile {
-    display: block;
-    text-align: center;
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    padding: 10px;
   }
 
   .ast-mobile-empty {
@@ -1371,7 +1977,8 @@ const transactionHistoryCss = `
     box-sizing: border-box;
   }
 
-  .ast-modal-box {
+  .ast-modal-box,
+  .ast-details-modal-box {
     width: min(560px, 100%);
     max-height: 90vh;
     overflow-y: auto;
@@ -1380,6 +1987,10 @@ const transactionHistoryCss = `
     padding: 22px;
     box-shadow: 0 20px 45px rgba(0,0,0,0.25);
     box-sizing: border-box;
+  }
+
+  .ast-details-modal-box {
+    width: min(860px, 100%);
   }
 
   .ast-modal-header {
@@ -1409,6 +2020,93 @@ const transactionHistoryCss = `
     justify-content: center;
   }
 
+  .ast-detail-summary,
+  .ast-delete-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .ast-detail-summary div,
+  .ast-delete-summary div,
+  .ast-detail-note {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 10px;
+    min-width: 0;
+  }
+
+  .ast-detail-summary span,
+  .ast-delete-summary span,
+  .ast-detail-note span {
+    display: block;
+    color: #6b7280;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .ast-detail-summary strong,
+  .ast-delete-summary strong,
+  .ast-detail-note strong {
+    display: block;
+    margin-top: 4px;
+    color: #111827;
+    font-size: 14px;
+    font-weight: 900;
+    overflow-wrap: anywhere;
+  }
+
+  .ast-detail-items-title {
+    margin: 16px 0 10px;
+    color: #111827;
+    font-size: 16px;
+    font-weight: 900;
+  }
+
+  .ast-detail-items-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .ast-detail-item-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 12px;
+    background: #ffffff;
+  }
+
+  .ast-detail-item-main h4 {
+    margin: 0;
+    color: #111827;
+    font-size: 15px;
+    font-weight: 900;
+  }
+
+  .ast-detail-item-main p {
+    margin: 5px 0 0;
+    color: #6b7280;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .ast-detail-item-points {
+    color: #2563eb;
+    font-size: 15px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .ast-detail-item-actions {
+    display: inline-flex;
+    gap: 8px;
+  }
+
   .ast-info-box {
     display: flex;
     align-items: flex-start;
@@ -1427,6 +2125,29 @@ const transactionHistoryCss = `
   .ast-info-box p {
     margin: 4px 0 0;
     color: #4b5563;
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .ast-delete-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 10px;
+    background-color: #fef2f2;
+    border: 1px solid #fecaca;
+    margin-bottom: 16px;
+    color: #991b1b;
+  }
+
+  .ast-delete-warning strong {
+    color: #991b1b;
+  }
+
+  .ast-delete-warning p {
+    margin: 4px 0 0;
+    color: #7f1d1d;
     font-size: 13px;
     line-height: 1.4;
   }
@@ -1470,6 +2191,41 @@ const transactionHistoryCss = `
     resize: vertical;
   }
 
+  .ast-password-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 9px;
+    padding: 0 11px;
+    background: #ffffff;
+  }
+
+  .ast-password-box svg {
+    color: #6b7280;
+    flex-shrink: 0;
+  }
+
+  .ast-password-box input {
+    border: none;
+    padding-left: 0;
+  }
+
+  .ast-readonly-unit {
+    width: 100%;
+    min-height: 43px;
+    padding: 11px 12px;
+    border-radius: 9px;
+    border: 1px solid #d1d5db;
+    font-size: 14px;
+    box-sizing: border-box;
+    background: #f9fafb;
+    color: #111827;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+  }
+
   .ast-calculation-box {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1506,7 +2262,12 @@ const transactionHistoryCss = `
   }
 
   .ast-cancel-btn,
-  .ast-save-btn {
+  .ast-save-btn,
+  .ast-confirm-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
     padding: 10px 16px;
     border-radius: 9px;
     cursor: pointer;
@@ -1521,17 +2282,20 @@ const transactionHistoryCss = `
   }
 
   .ast-save-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
     border: 1px solid #2563eb;
     background-color: #2563eb;
     color: #ffffff;
   }
 
+  .ast-confirm-delete-btn {
+    border: 1px solid #dc2626;
+    background-color: #dc2626;
+    color: #ffffff;
+  }
+
   .ast-cancel-btn:disabled,
-  .ast-save-btn:disabled {
+  .ast-save-btn:disabled,
+  .ast-confirm-delete-btn:disabled {
     opacity: 0.7;
     cursor: not-allowed;
   }
@@ -1539,6 +2303,20 @@ const transactionHistoryCss = `
   @media (max-width: 1100px) {
     .ast-summary-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ast-detail-item-card {
+      grid-template-columns: 1fr;
+      align-items: flex-start;
+    }
+
+    .ast-detail-item-actions {
+      width: 100%;
+    }
+
+    .ast-detail-item-actions .ast-edit-btn,
+    .ast-detail-item-actions .ast-delete-btn {
+      flex: 1;
     }
   }
 
@@ -1639,16 +2417,19 @@ const transactionHistoryCss = `
       padding: 0;
     }
 
-    .ast-modal-box {
+    .ast-modal-box,
+    .ast-details-modal-box {
       width: 100%;
       max-height: 92vh;
       border-radius: 18px 18px 0 0;
       padding: 20px;
     }
 
-    .ast-form-row {
+    .ast-form-row,
+    .ast-delete-summary,
+    .ast-detail-summary {
       grid-template-columns: 1fr;
-      gap: 0;
+      gap: 10px;
     }
 
     .ast-modal-actions {
@@ -1656,7 +2437,8 @@ const transactionHistoryCss = `
     }
 
     .ast-cancel-btn,
-    .ast-save-btn {
+    .ast-save-btn,
+    .ast-confirm-delete-btn {
       width: 100%;
     }
   }
@@ -1691,7 +2473,8 @@ const transactionHistoryCss = `
       grid-template-columns: 1fr;
     }
 
-    .ast-modal-box {
+    .ast-modal-box,
+    .ast-details-modal-box {
       padding: 16px;
     }
   }

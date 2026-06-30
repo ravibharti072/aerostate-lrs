@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float, Boolean
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
+
 from database import Base
 
 
@@ -66,13 +67,15 @@ class Customer(Base):
 
     name = Column(String, nullable=False)
     phone_number = Column(String, unique=True, nullable=False)
-
     address = Column(String, nullable=True)
+    aadhaar_number = Column(String, nullable=True)
+    pan_number = Column(String, nullable=True)
     bank_account_number = Column(String, nullable=True)
     bank_name = Column(String, nullable=True)
     ifsc_code = Column(String, nullable=True)
 
-    points_balance = Column(Integer, default=0)
+    # Decimal point balance supported.
+    points_balance = Column(Float, default=0.0)
 
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -95,15 +98,16 @@ class LoyaltyItem(Base):
 
     item_name = Column(String, nullable=False)
 
-    # Kept for old backend compatibility.
     # For new Item Master, default category is "item".
     category = Column(String, nullable=False, default="item")
 
     # Optional SKU
     sku = Column(String, index=True, nullable=True)
 
-    # In this RMS, this is used as points per unit.
-    # Example: per_point_amount = 2 means 2 points per selected quantity.
+    unit = Column(String, nullable=False, default="pcs", server_default="pcs")
+
+    # In this LRS, this is used as points per unit.
+    # Example: 10.5 points per kg.
     per_point_amount = Column(Float, nullable=False, default=0.0)
 
     is_active = Column(Boolean, default=True)
@@ -126,7 +130,9 @@ class RewardEntry(Base):
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
 
-    total_points = Column(Integer, nullable=False, default=0)
+    # Decimal total points supported.
+    total_points = Column(Float, nullable=False, default=0.0)
+
     note = Column(String, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -164,7 +170,7 @@ class RewardEntryItem(Base):
 
     # This links each reward entry item row to its point transaction.
     # Needed for Transaction History edit:
-    # edit product/unit/quantity -> auto update points transaction.
+    # edit product/unit/quantity -> auto update point transaction.
     point_transaction_id = Column(
         Integer,
         ForeignKey("point_transactions.id"),
@@ -174,8 +180,9 @@ class RewardEntryItem(Base):
     unit = Column(String, nullable=False)
     quantity = Column(Float, nullable=False)
 
+    # Decimal points supported.
     points_per_unit = Column(Float, nullable=False, default=0.0)
-    total_points = Column(Integer, nullable=False, default=0)
+    total_points = Column(Float, nullable=False, default=0.0)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -186,7 +193,7 @@ class RewardEntryItem(Base):
 
 # -----------------------------
 # POINTS HISTORY / TRANSACTIONS
-# Later frontend name: Transaction History
+# Frontend name: Transaction History
 # -----------------------------
 class PointTransaction(Base):
     __tablename__ = "point_transactions"
@@ -202,7 +209,8 @@ class PointTransaction(Base):
     # EARN, REDEEM, MANUAL_ADD, MANUAL_DEDUCT
     transaction_type = Column(String, nullable=False)
 
-    points = Column(Integer, nullable=False)
+    # Decimal transaction points supported.
+    points = Column(Float, nullable=False, default=0.0)
 
     # Optional amount used for old/manual point calculation
     amount = Column(Float, nullable=True)
@@ -232,7 +240,9 @@ class Payout(Base):
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
 
-    points_redeemed = Column(Integer, nullable=False)
+    # Decimal redeem points supported.
+    points_redeemed = Column(Float, nullable=False, default=0.0)
+
     payout_value = Column(Float, nullable=True)
 
     status = Column(String, default="completed")

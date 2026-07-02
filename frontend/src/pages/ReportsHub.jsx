@@ -10,7 +10,6 @@ import {
   FiPackage,
   FiPieChart,
   FiPrinter,
-  FiRefreshCw,
   FiSearch,
   FiTrendingUp,
   FiUsers,
@@ -20,10 +19,12 @@ import api from "../api/axios";
 const styles = `
 .reports-page {
   width: 100%;
-  min-height: 100%;
-  padding: 18px;
+  min-height: 100vh;
+  padding: 24px;
   background: #f8fafc;
   color: #0f172a;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .reports-header-card {
@@ -36,31 +37,53 @@ const styles = `
   justify-content: space-between;
   gap: 16px;
   align-items: center;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
 }
 
-.reports-title-wrap {
+.reports-header-left {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
 }
 
 .report-back-btn {
-  border: none;
-  background: #eef2ff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
   color: #2563eb;
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 900;
   cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.report-back-btn:hover {
+  background: #dbeafe;
+}
+
+.reports-title-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: #eff6ff;
+  color: #2563eb;
   display: grid;
   place-items: center;
+  font-size: 22px;
   flex: 0 0 auto;
 }
 
 .reports-title {
   margin: 0;
   font-size: 26px;
-  font-weight: 900;
+  font-weight: 950;
   letter-spacing: -0.03em;
 }
 
@@ -68,6 +91,8 @@ const styles = `
   margin: 6px 0 0;
   color: #64748b;
   font-size: 14px;
+  font-weight: 650;
+  line-height: 1.45;
 }
 
 .reports-actions {
@@ -81,22 +106,24 @@ const styles = `
   border: none;
   background: #2563eb;
   color: #ffffff;
-  height: 42px;
-  padding: 0 14px;
-  border-radius: 12px;
-  font-weight: 800;
+  height: 46px;
+  padding: 0 18px;
+  border-radius: 13px;
+  font-weight: 950;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   white-space: nowrap;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.18);
 }
 
 .report-action-btn.secondary {
   background: #ffffff;
   color: #0f172a;
   border: 1px solid #e2e8f0;
+  box-shadow: none;
 }
 
 .report-action-btn:disabled {
@@ -108,156 +135,101 @@ const styles = `
   background: #fef2f2;
   border: 1px solid #fecaca;
   color: #991b1b;
-  padding: 12px 14px;
-  border-radius: 15px;
-  margin-bottom: 14px;
-  font-weight: 700;
+  padding: 13px 16px;
+  border-radius: 14px;
+  margin-bottom: 18px;
+  font-weight: 800;
 }
 
 .report-section-title {
-  margin: 20px 0 12px;
-  font-size: 20px;
-  font-weight: 900;
-}
-
-.report-tiles-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 20px;
-}
-
-.report-tile {
-  min-height: 112px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 18px;
-  padding: 18px;
-  cursor: pointer;
-  transition: 0.2s ease;
-  text-align: left;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.report-tile:hover {
-  transform: translateY(-2px);
-  border-color: #2563eb;
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
-}
-
-.report-tile-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 15px;
-  display: grid;
-  place-items: center;
-  font-size: 21px;
-  flex: 0 0 auto;
-  background: #eff6ff;
-  color: #2563eb;
-}
-
-.report-tile-title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 900;
-  color: #0f172a;
-}
-
-.report-tile-desc {
-  margin: 5px 0 0;
-  font-size: 12px;
-  color: #64748b;
-  line-height: 1.35;
-}
-
-.report-tile-badge {
-  display: inline-flex;
-  margin-top: 9px;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: #eff6ff;
-  color: #2563eb;
-  font-size: 11px;
-  font-weight: 900;
+  font-size: 19px;
+  font-weight: 950;
 }
 
 .report-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 16px;
+  gap: 16px;
+  margin-bottom: 18px;
 }
 
 .report-summary-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 18px;
-  padding: 16px;
+  padding: 18px;
   display: flex;
-  gap: 13px;
+  gap: 15px;
   align-items: center;
+  min-width: 0;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
 }
 
 .report-summary-icon {
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
   border-radius: 15px;
   background: #eff6ff;
-  color: #1d4ed8;
+  color: #2563eb;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
+  font-size: 21px;
 }
 
 .report-summary-label {
   margin: 0;
   color: #64748b;
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .report-summary-value {
-  margin: 3px 0 0;
-  font-size: 22px;
-  font-weight: 900;
+  margin: 6px 0 0;
+  font-size: 26px;
+  font-weight: 950;
   letter-spacing: -0.03em;
+  color: #0f172a;
+  line-height: 1;
+  word-break: break-word;
 }
 
 .report-charts-grid {
   display: grid;
   grid-template-columns: 1.3fr 0.85fr 1fr;
-  gap: 14px;
+  gap: 16px;
   margin-bottom: 18px;
 }
 
 .report-chart-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 18px;
-  padding: 16px;
+  border-radius: 20px;
+  padding: 18px;
   min-height: 260px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
 }
 
 .report-chart-title {
   margin: 0 0 14px;
-  font-size: 16px;
-  font-weight: 900;
+  font-size: 17px;
+  font-weight: 950;
+  color: #0f172a;
 }
 
 .simple-bar-row {
-  margin-bottom: 13px;
+  margin-bottom: 14px;
 }
 
 .simple-bar-head {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 850;
   margin-bottom: 7px;
+  color: #334155;
 }
 
 .simple-bar-track {
@@ -303,7 +275,11 @@ const styles = `
   display: grid;
   place-items: center;
   text-align: center;
-  font-weight: 900;
+  font-weight: 950;
+  color: #0f172a;
+  font-size: 13px;
+  padding: 35px;
+  word-break: break-word;
 }
 
 .donut-legend {
@@ -316,8 +292,9 @@ const styles = `
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 850;
+  color: #334155;
 }
 
 .legend-left {
@@ -340,30 +317,145 @@ const styles = `
   background: #f97316;
 }
 
+.reports-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+  margin-bottom: 18px;
+}
+
+.reports-card-head {
+  padding: 18px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  background: #ffffff;
+}
+
+.reports-card-title {
+  margin: 0;
+  color: #0f172a;
+  font-size: 19px;
+  font-weight: 950;
+}
+
+.reports-card-subtitle {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.report-record-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2563eb;
+  padding: 8px 13px;
+  font-size: 13px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.report-tiles-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 20px;
+  background: #f8fafc;
+}
+
+.report-tile {
+  min-height: 118px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 18px;
+  cursor: pointer;
+  transition: 0.2s ease;
+  text-align: left;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.report-tile:hover {
+  transform: translateY(-2px);
+  border-color: #bfdbfe;
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.08);
+}
+
+.report-tile-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  font-size: 21px;
+  flex: 0 0 auto;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.report-tile-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 950;
+  color: #0f172a;
+}
+
+.report-tile-desc {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.4;
+  font-weight: 650;
+}
+
+.report-tile-badge {
+  display: inline-flex;
+  margin-top: 10px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 950;
+}
+
 .report-filters {
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 18px;
   padding: 14px;
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr;
+  grid-template-columns: minmax(280px, 1.5fr) 1fr 1fr;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   align-items: end;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
 }
 
 .report-filter-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   justify-content: flex-end;
 }
 
 .report-filter-group label {
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 950;
   color: #64748b;
   line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .report-search-box {
@@ -385,14 +477,17 @@ const styles = `
 .report-input {
   width: 100%;
   height: 44px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  border-radius: 13px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 12px;
   padding: 0 12px;
   font-size: 14px;
   outline: none;
   display: flex;
   align-items: center;
+  box-sizing: border-box;
+  color: #0f172a;
+  font-weight: 750;
 }
 
 .report-search-box .report-input {
@@ -409,23 +504,30 @@ const styles = `
   border: 1px solid #e2e8f0;
   border-radius: 20px;
   overflow: hidden;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
 }
 
 .report-section-head {
-  padding: 16px;
+  padding: 18px 20px;
   border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
 }
 
 .report-section-head h3 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 900;
+  font-size: 19px;
+  font-weight: 950;
+  color: #0f172a;
 }
 
 .report-section-head p {
-  margin: 5px 0 0;
+  margin: 6px 0 0;
   color: #64748b;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 650;
 }
 
 .report-table-wrap {
@@ -436,24 +538,34 @@ const styles = `
 .report-table {
   width: 100%;
   min-width: 980px;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .report-table th {
   background: #f8fafc;
-  color: #475569;
+  color: #64748b;
   font-size: 12px;
   text-align: left;
-  padding: 13px 14px;
+  padding: 14px 16px;
   border-bottom: 1px solid #e2e8f0;
   white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 950;
 }
 
 .report-table td {
-  padding: 13px 14px;
-  border-bottom: 1px solid #f1f5f9;
-  font-size: 13px;
-  vertical-align: top;
+  padding: 16px;
+  border-bottom: 1px solid #eef2f7;
+  font-size: 14px;
+  vertical-align: middle;
+  font-weight: 750;
+  color: #0f172a;
+}
+
+.report-table tbody tr:hover {
+  background: #f8fafc;
 }
 
 .report-table tr:last-child td {
@@ -464,6 +576,7 @@ const styles = `
   display: none;
   padding: 14px;
   gap: 12px;
+  background: #f8fafc;
 }
 
 .report-mobile-card {
@@ -481,14 +594,16 @@ const styles = `
 }
 
 .report-mobile-title {
-  font-weight: 900;
+  font-weight: 950;
   margin: 0;
+  color: #0f172a;
 }
 
 .report-mobile-subtitle {
   color: #64748b;
   margin: 3px 0 0;
   font-size: 12px;
+  font-weight: 800;
 }
 
 .report-mobile-grid {
@@ -507,21 +622,24 @@ const styles = `
   display: block;
   color: #64748b;
   font-size: 11px;
-  font-weight: 800;
-  margin-bottom: 3px;
+  font-weight: 900;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .report-mobile-data {
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 850;
   color: #0f172a;
   word-break: break-word;
 }
 
 .report-empty {
-  padding: 28px 16px;
+  padding: 32px 16px;
   text-align: center;
   color: #64748b;
+  font-weight: 800;
 }
 
 @media (max-width: 1200px) {
@@ -563,6 +681,10 @@ const styles = `
     padding: 16px;
   }
 
+  .reports-header-left {
+    flex-wrap: wrap;
+  }
+
   .reports-actions {
     width: 100%;
     justify-content: stretch;
@@ -574,11 +696,18 @@ const styles = `
   }
 
   .reports-title {
-    font-size: 22px;
+    font-size: 23px;
+  }
+
+  .reports-title-icon {
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
   }
 
   .report-tiles-grid {
     grid-template-columns: 1fr;
+    padding: 12px;
   }
 
   .report-tile {
@@ -596,7 +725,7 @@ const styles = `
   }
 
   .report-summary-value {
-    font-size: 20px;
+    font-size: 22px;
   }
 
   .report-table-wrap {
@@ -609,6 +738,12 @@ const styles = `
 
   .report-mobile-grid {
     grid-template-columns: 1fr;
+  }
+
+  .reports-card-head,
+  .report-section-head {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 
@@ -735,7 +870,9 @@ function getDateInputValue(value) {
 
 function getTodayInputValue() {
   const today = new Date();
-  const localDate = new Date(today.getTime() - today.getTimezoneOffset() * 60000);
+  const localDate = new Date(
+    today.getTime() - today.getTimezoneOffset() * 60000
+  );
   return localDate.toISOString().slice(0, 10);
 }
 
@@ -788,7 +925,9 @@ function escapeCsv(value) {
 function downloadCsv(filename, columns, rows) {
   const header = columns.map((column) => escapeCsv(column.label)).join(",");
   const body = rows
-    .map((row) => columns.map((column) => escapeCsv(column.value(row))).join(","))
+    .map((row) =>
+      columns.map((column) => escapeCsv(column.value(row))).join(",")
+    )
     .join("\n");
 
   const csv = [header, body].filter(Boolean).join("\n");
@@ -847,7 +986,12 @@ function ReportsHub({ onBack }) {
         fetchFirstAvailable(["/customers/", "/customers"], ["customers"]),
         fetchFirstAvailable(["/payouts", "/payouts/"], ["payouts"]),
         fetchFirstAvailable(
-          ["/transactions/", "/transactions", "/transaction-history/", "/transaction-history"],
+          [
+            "/transactions/",
+            "/transactions",
+            "/transaction-history/",
+            "/transaction-history",
+          ],
           ["transactions"]
         ),
         fetchFirstAvailable(["/items/", "/items", "/products/", "/products"], [
@@ -1106,7 +1250,9 @@ function ReportsHub({ onBack }) {
       item.payoutAmount += row.payoutAmount;
     });
 
-    return Array.from(map.values()).sort((a, b) => b.month.localeCompare(a.month));
+    return Array.from(map.values()).sort((a, b) =>
+      b.month.localeCompare(a.month)
+    );
   }, [payoutRows]);
 
   const transactionRows = useMemo(() => {
@@ -1325,9 +1471,13 @@ function ReportsHub({ onBack }) {
     transactionRows.forEach((transaction) => {
       if (transaction.pointsEarned <= 0 && transaction.quantity <= 0) return;
 
-      const transactionItemId = transaction.itemId ? String(transaction.itemId) : "";
+      const transactionItemId = transaction.itemId
+        ? String(transaction.itemId)
+        : "";
       const transactionItemName = transaction.itemName || "-";
-      const normalizedTransactionName = transactionItemName.toLowerCase().trim();
+      const normalizedTransactionName = transactionItemName
+        .toLowerCase()
+        .trim();
 
       const matchedItem =
         (transactionItemId && itemLookupById.get(transactionItemId)) ||
@@ -1340,7 +1490,8 @@ function ReportsHub({ onBack }) {
           ? transactionItemName
           : matchedItem?.itemName || "Unknown Item";
 
-      const sku = transaction.sku !== "-" ? transaction.sku : matchedItem?.sku || "-";
+      const sku =
+        transaction.sku !== "-" ? transaction.sku : matchedItem?.sku || "-";
 
       const pointsPerUnit =
         matchedItem?.pointsPerUnit ||
@@ -1515,7 +1666,9 @@ function ReportsHub({ onBack }) {
     dailyRewardRows,
   ]);
 
-  const activeReportConfig = REPORTS.find((report) => report.key === activeReport);
+  const activeReportConfig = REPORTS.find(
+    (report) => report.key === activeReport
+  );
   const columns = getColumns(activeReport);
 
   const handleOpenReport = (reportKey) => {
@@ -1557,11 +1710,14 @@ function ReportsHub({ onBack }) {
     },
   ];
 
-  const monthlyPayoutChart = monthlyPayoutRows.slice(0, 6).reverse().map((row) => ({
-    label: formatMonth(row.month),
-    value: row.payoutAmount,
-    currency: true,
-  }));
+  const monthlyPayoutChart = monthlyPayoutRows
+    .slice(0, 6)
+    .reverse()
+    .map((row) => ({
+      label: formatMonth(row.month),
+      value: row.payoutAmount,
+      currency: true,
+    }));
 
   const customerAvailableChart = customerRows.slice(0, 6).map((row) => ({
     label: row.customerName,
@@ -1577,19 +1733,27 @@ function ReportsHub({ onBack }) {
     <div className="reports-page">
       <style>{styles}</style>
 
-      <div className="reports-header-card">
-        <div className="reports-title-wrap">
+      <section className="reports-header-card">
+        <div className="reports-header-left">
           {activeReport ? (
-            <button className="report-back-btn" onClick={handleBackToReports}>
-              <FiArrowLeft />
+            <button
+              type="button"
+              className="report-back-btn"
+              onClick={handleBackToReports}
+            >
+              <FiArrowLeft /> Back
             </button>
           ) : (
             onBack && (
-              <button className="report-back-btn" onClick={onBack}>
-                <FiArrowLeft />
+              <button type="button" className="report-back-btn" onClick={onBack}>
+                <FiArrowLeft /> Back
               </button>
             )
           )}
+
+          <div className="reports-title-icon">
+            {activeReportConfig?.icon || <FiBarChart2 />}
+          </div>
 
           <div>
             <h1 className="reports-title">
@@ -1604,18 +1768,11 @@ function ReportsHub({ onBack }) {
         </div>
 
         <div className="reports-actions">
-          <button
-            className="report-action-btn secondary"
-            onClick={fetchReportsData}
-            disabled={loading}
-          >
-            <FiRefreshCw />
-            {loading ? "Loading..." : "Refresh"}
-          </button>
 
           {activeReport && (
             <>
               <button
+                type="button"
                 className="report-action-btn secondary"
                 onClick={() => window.print()}
                 disabled={!filteredRows.length}
@@ -1625,6 +1782,7 @@ function ReportsHub({ onBack }) {
               </button>
 
               <button
+                type="button"
                 className="report-action-btn"
                 onClick={handleExportCsv}
                 disabled={!filteredRows.length}
@@ -1635,13 +1793,13 @@ function ReportsHub({ onBack }) {
             </>
           )}
         </div>
-      </div>
+      </section>
 
       {error && <div className="report-error">{error}</div>}
 
       {!activeReport ? (
         <>
-          <div className="report-summary-grid">
+          <section className="report-summary-grid">
             <SummaryCard
               icon={<FiUsers />}
               label="Total Customers"
@@ -1662,9 +1820,9 @@ function ReportsHub({ onBack }) {
               label="Pending Payout"
               value={formatCurrency(payoutSummary.pendingPayoutAmount)}
             />
-          </div>
+          </section>
 
-          <div className="report-charts-grid">
+          <section className="report-charts-grid">
             <SimpleBarChart title="Points Overview" data={chartBars} />
 
             <DonutChart
@@ -1681,36 +1839,60 @@ function ReportsHub({ onBack }) {
               redeemedLabel="Paid Payout"
               currency
             />
-          </div>
+          </section>
 
-          <h2 className="report-section-title">All Reports</h2>
+          <section className="reports-card">
+            <div className="reports-card-head">
+              <div>
+                <h2 className="reports-card-title">All Reports</h2>
+                <p className="reports-card-subtitle">
+                  Open payout, customer balance, monthly, item and daily reward
+                  reports.
+                </p>
+              </div>
 
-          <div className="report-tiles-grid">
-            {REPORTS.map((report) => (
-              <button
-                key={report.key}
-                className="report-tile"
-                onClick={() => handleOpenReport(report.key)}
-              >
-                <div className="report-tile-icon">{report.icon}</div>
-                <div>
-                  <h3 className="report-tile-title">{report.title}</h3>
-                  <p className="report-tile-desc">{report.description}</p>
-                  <span className="report-tile-badge">{report.badge}</span>
-                </div>
-              </button>
-            ))}
-          </div>
+              <span className="report-record-badge">
+                {REPORTS.length} reports
+              </span>
+            </div>
 
-          <div className="report-charts-grid">
-            <SimpleBarChart title="Monthly Payout Trend" data={monthlyPayoutChart} />
-            <SimpleBarChart title="Customer Available Points" data={customerAvailableChart} />
-            <SimpleBarChart title="Item Reward Performance" data={itemPerformanceChart} />
-          </div>
+            <div className="report-tiles-grid">
+              {REPORTS.map((report) => (
+                <button
+                  type="button"
+                  key={report.key}
+                  className="report-tile"
+                  onClick={() => handleOpenReport(report.key)}
+                >
+                  <div className="report-tile-icon">{report.icon}</div>
+                  <div>
+                    <h3 className="report-tile-title">{report.title}</h3>
+                    <p className="report-tile-desc">{report.description}</p>
+                    <span className="report-tile-badge">{report.badge}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="report-charts-grid">
+            <SimpleBarChart
+              title="Monthly Payout Trend"
+              data={monthlyPayoutChart}
+            />
+            <SimpleBarChart
+              title="Customer Available Points"
+              data={customerAvailableChart}
+            />
+            <SimpleBarChart
+              title="Item Reward Performance"
+              data={itemPerformanceChart}
+            />
+          </section>
         </>
       ) : (
         <>
-          <div className="report-filters">
+          <section className="report-filters">
             <div className="report-filter-group">
               <label>Search</label>
               <div className="report-search-box">
@@ -1744,7 +1926,7 @@ function ReportsHub({ onBack }) {
                 onChange={(event) => setToDate(event.target.value)}
               />
             </div>
-          </div>
+          </section>
 
           <ReportVisualSummary rows={filteredRows} pointValue={pointValue} />
 
@@ -1766,9 +1948,18 @@ function getColumns(activeReport) {
       { label: "Date", value: (row) => formatDate(row.date) },
       { label: "Customer Name", value: (row) => row.customerName },
       { label: "Phone", value: (row) => row.phone },
-      { label: "Points Redeemed", value: (row) => formatNumber(row.pointsRedeemed) },
-      { label: "Point Value Used", value: (row) => `₹${formatNumber(row.pointValueUsed)}` },
-      { label: "Payout Amount", value: (row) => formatCurrency(row.payoutAmount) },
+      {
+        label: "Points Redeemed",
+        value: (row) => formatNumber(row.pointsRedeemed),
+      },
+      {
+        label: "Point Value Used",
+        value: (row) => `₹${formatNumber(row.pointValueUsed)}`,
+      },
+      {
+        label: "Payout Amount",
+        value: (row) => formatCurrency(row.payoutAmount),
+      },
       { label: "Bank Name", value: (row) => row.bankName },
       { label: "Account Number", value: (row) => row.accountNumber },
       { label: "IFSC", value: (row) => row.ifsc },
@@ -1777,41 +1968,98 @@ function getColumns(activeReport) {
     customerBalance: [
       { label: "Customer Name", value: (row) => row.customerName },
       { label: "Phone", value: (row) => row.phone },
-      { label: "Total Points Earned", value: (row) => formatNumber(row.totalPointsEarned) },
-      { label: "Total Points Redeemed", value: (row) => formatNumber(row.totalPointsRedeemed) },
-      { label: "Available Points", value: (row) => formatNumber(row.availablePoints) },
-      { label: "Approx Payout Value", value: (row) => formatCurrency(row.approxPayoutValue) },
+      {
+        label: "Total Points Earned",
+        value: (row) => formatNumber(row.totalPointsEarned),
+      },
+      {
+        label: "Total Points Redeemed",
+        value: (row) => formatNumber(row.totalPointsRedeemed),
+      },
+      {
+        label: "Available Points",
+        value: (row) => formatNumber(row.availablePoints),
+      },
+      {
+        label: "Approx Payout Value",
+        value: (row) => formatCurrency(row.approxPayoutValue),
+      },
       { label: "Bank Name", value: (row) => row.bankName },
       { label: "Account Number", value: (row) => row.accountNumber },
       { label: "IFSC", value: (row) => row.ifsc },
     ],
     monthlyPayout: [
       { label: "Month", value: (row) => formatMonth(row.month) },
-      { label: "Payout Entries", value: (row) => formatNumber(row.payoutEntries) },
-      { label: "Points Redeemed", value: (row) => formatNumber(row.pointsRedeemed) },
-      { label: "Payout Amount", value: (row) => formatCurrency(row.payoutAmount) },
+      {
+        label: "Payout Entries",
+        value: (row) => formatNumber(row.payoutEntries),
+      },
+      {
+        label: "Points Redeemed",
+        value: (row) => formatNumber(row.pointsRedeemed),
+      },
+      {
+        label: "Payout Amount",
+        value: (row) => formatCurrency(row.payoutAmount),
+      },
     ],
     monthlyReward: [
       { label: "Month", value: (row) => formatMonth(row.month) },
-      { label: "Reward Entries", value: (row) => formatNumber(row.rewardEntries) },
-      { label: "Points Given", value: (row) => formatNumber(row.pointsGiven) },
-      { label: "Points Redeemed", value: (row) => formatNumber(row.pointsRedeemed) },
-      { label: "Payout Amount", value: (row) => formatCurrency(row.payoutAmount) },
-      { label: "Net Available Points", value: (row) => formatNumber(row.netAvailablePoints) },
+      {
+        label: "Reward Entries",
+        value: (row) => formatNumber(row.rewardEntries),
+      },
+      {
+        label: "Points Given",
+        value: (row) => formatNumber(row.pointsGiven),
+      },
+      {
+        label: "Points Redeemed",
+        value: (row) => formatNumber(row.pointsRedeemed),
+      },
+      {
+        label: "Payout Amount",
+        value: (row) => formatCurrency(row.payoutAmount),
+      },
+      {
+        label: "Net Available Points",
+        value: (row) => formatNumber(row.netAvailablePoints),
+      },
     ],
     itemPerformance: [
       { label: "Item Name", value: (row) => row.itemName },
       { label: "SKU", value: (row) => row.sku },
-      { label: "Points Per Unit", value: (row) => formatNumber(row.pointsPerUnit) },
-      { label: "Total Quantity Sold", value: (row) => formatNumber(row.totalQuantitySold) },
-      { label: "Total Points Given", value: (row) => formatNumber(row.totalPointsGiven) },
-      { label: "Number of Customers", value: (row) => formatNumber(row.numberOfCustomers) },
+      {
+        label: "Points Per Unit",
+        value: (row) => formatNumber(row.pointsPerUnit),
+      },
+      {
+        label: "Total Quantity Sold",
+        value: (row) => formatNumber(row.totalQuantitySold),
+      },
+      {
+        label: "Total Points Given",
+        value: (row) => formatNumber(row.totalPointsGiven),
+      },
+      {
+        label: "Number of Customers",
+        value: (row) => formatNumber(row.numberOfCustomers),
+      },
     ],
     dailyReward: [
       { label: "Date", value: (row) => formatDate(row.date) },
-      { label: "Reward Entries", value: (row) => formatNumber(row.rewardEntries) },
-      { label: "Points Given", value: (row) => formatNumber(row.pointsGiven) },
-      { label: "Points Redeemed", value: (row) => formatNumber(row.pointsRedeemed) },
+      {
+        label: "Reward Entries",
+        value: (row) => formatNumber(row.rewardEntries),
+      },
+      {
+        label: "Points Given",
+        value: (row) => formatNumber(row.pointsGiven),
+      },
+      {
+        label: "Points Redeemed",
+        value: (row) => formatNumber(row.pointsRedeemed),
+      },
     ],
   };
 
@@ -1858,7 +2106,7 @@ function ReportVisualSummary({ rows, pointValue }) {
 
   return (
     <>
-      <div className="report-summary-grid">
+      <section className="report-summary-grid">
         <SummaryCard
           icon={<FiGrid />}
           label="Total Records"
@@ -1879,9 +2127,9 @@ function ReportVisualSummary({ rows, pointValue }) {
           label="Point Value"
           value={`₹${formatNumber(pointValue)}`}
         />
-      </div>
+      </section>
 
-      <div className="report-charts-grid">
+      <section className="report-charts-grid">
         <SimpleBarChart title="Report Visual Chart" data={chartData} />
 
         <DonutChart
@@ -1893,7 +2141,7 @@ function ReportVisualSummary({ rows, pointValue }) {
         />
 
         <SimpleBarChart title="Top Values" data={chartData.slice(0, 5)} />
-      </div>
+      </section>
     </>
   );
 }
@@ -1934,7 +2182,10 @@ function SimpleBarChart({ title, data }) {
               </div>
 
               <div className="simple-bar-track">
-                <div className="simple-bar-fill" style={{ width: `${percent}%` }} />
+                <div
+                  className="simple-bar-fill"
+                  style={{ width: `${percent}%` }}
+                />
               </div>
             </div>
           );
@@ -1997,15 +2248,20 @@ function DonutChart({
 
 function GenericReportTable({ title, description, rows, columns }) {
   return (
-    <div className="report-section">
+    <section className="report-section">
       <div className="report-section-head">
-        <h3>{title}</h3>
-        <p>{description}</p>
+        <div>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
+
+        <span className="report-record-badge">{rows.length} records</span>
       </div>
 
       {rows.length === 0 ? (
         <div className="report-empty">
-          No data found. If this report needs backend data, update or create the related API.
+          No data found. If this report needs backend data, update or create the
+          related API.
         </div>
       ) : (
         <>
@@ -2060,7 +2316,7 @@ function GenericReportTable({ title, description, rows, columns }) {
           </div>
         </>
       )}
-    </div>
+    </section>
   );
 }
 

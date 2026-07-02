@@ -26,6 +26,7 @@ from routers import (
     payouts,
     leaderboard,
     app_settings,
+    messages,
     dev,
 )
 
@@ -33,7 +34,8 @@ from routers import (
 # ------------------------------------------------------------------
 # DATABASE INIT + TEMP MIGRATIONS
 # NOTE:
-# This is safe temporary migration code.
+# This creates missing tables and adds missing columns safely.
+# It does NOT delete old data.
 # Later, move this to Alembic migrations.
 # Do not add DROP / TRUNCATE here.
 # ------------------------------------------------------------------
@@ -41,6 +43,67 @@ def run_temporary_migrations():
     Base.metadata.create_all(bind=engine)
 
     with engine.begin() as connection:
+        # -----------------------------
+        # STORES table migration
+        # -----------------------------
+        connection.execute(text("""
+            ALTER TABLE stores
+            ADD COLUMN IF NOT EXISTS owner_name VARCHAR;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE stores
+            ADD COLUMN IF NOT EXISTS owner_phone VARCHAR;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE stores
+            ADD COLUMN IF NOT EXISTS owner_email VARCHAR;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE stores
+            ADD COLUMN IF NOT EXISTS address VARCHAR;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE stores
+            ADD COLUMN IF NOT EXISTS city VARCHAR;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE stores
+            ADD COLUMN IF NOT EXISTS state VARCHAR;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE stores
+            ADD COLUMN IF NOT EXISTS pincode VARCHAR;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE stores
+            ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE stores
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+        """))
+
+        # -----------------------------
+        # USERS table migration
+        # -----------------------------
+        connection.execute(text("""
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+        """))
+
         # -----------------------------
         # CUSTOMERS table migration
         # -----------------------------
@@ -99,6 +162,24 @@ def run_temporary_migrations():
         """))
 
         # -----------------------------
+        # POINT TRANSACTIONS table safety migration
+        # -----------------------------
+        connection.execute(text("""
+            ALTER TABLE point_transactions
+            ADD COLUMN IF NOT EXISTS amount DOUBLE PRECISION;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE point_transactions
+            ADD COLUMN IF NOT EXISTS note VARCHAR;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE point_transactions
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+        """))
+
+        # -----------------------------
         # REWARD ENTRY tables
         # -----------------------------
         connection.execute(text("""
@@ -131,63 +212,38 @@ def run_temporary_migrations():
         """))
 
         # -----------------------------
-        # USERS table migration
+        # PAYOUTS table safety migration
         # -----------------------------
         connection.execute(text("""
-            ALTER TABLE users
-            ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+            CREATE TABLE IF NOT EXISTS payouts (
+                id SERIAL PRIMARY KEY,
+                store_id INTEGER REFERENCES stores(id),
+                customer_id INTEGER NOT NULL REFERENCES customers(id),
+                points_redeemed DOUBLE PRECISION NOT NULL DEFAULT 0,
+                payout_value DOUBLE PRECISION,
+                status VARCHAR DEFAULT 'completed',
+                note VARCHAR,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
         """))
 
         connection.execute(text("""
-            ALTER TABLE users
-            ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
-        """))
-
-        # -----------------------------
-        # STORES table migration
-        # -----------------------------
-        connection.execute(text("""
-            ALTER TABLE stores
-            ADD COLUMN IF NOT EXISTS owner_name VARCHAR;
+            ALTER TABLE payouts
+            ADD COLUMN IF NOT EXISTS payout_value DOUBLE PRECISION;
         """))
 
         connection.execute(text("""
-            ALTER TABLE stores
-            ADD COLUMN IF NOT EXISTS owner_phone VARCHAR;
+            ALTER TABLE payouts
+            ADD COLUMN IF NOT EXISTS status VARCHAR DEFAULT 'completed';
         """))
 
         connection.execute(text("""
-            ALTER TABLE stores
-            ADD COLUMN IF NOT EXISTS owner_email VARCHAR;
+            ALTER TABLE payouts
+            ADD COLUMN IF NOT EXISTS note VARCHAR;
         """))
 
         connection.execute(text("""
-            ALTER TABLE stores
-            ADD COLUMN IF NOT EXISTS address VARCHAR;
-        """))
-
-        connection.execute(text("""
-            ALTER TABLE stores
-            ADD COLUMN IF NOT EXISTS city VARCHAR;
-        """))
-
-        connection.execute(text("""
-            ALTER TABLE stores
-            ADD COLUMN IF NOT EXISTS state VARCHAR;
-        """))
-
-        connection.execute(text("""
-            ALTER TABLE stores
-            ADD COLUMN IF NOT EXISTS pincode VARCHAR;
-        """))
-
-        connection.execute(text("""
-            ALTER TABLE stores
-            ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
-        """))
-
-        connection.execute(text("""
-            ALTER TABLE stores
+            ALTER TABLE payouts
             ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
         """))
 
@@ -206,6 +262,95 @@ def run_temporary_migrations():
         """))
 
         # -----------------------------
+        # WHATSAPP MESSAGE LOGS table migration
+        # This table only stores send attempt logs.
+        # No secrets or access tokens should be stored here.
+        # -----------------------------
+        connection.execute(text("""
+            CREATE TABLE IF NOT EXISTS whatsapp_message_logs (
+                id SERIAL PRIMARY KEY,
+
+                store_id INTEGER REFERENCES stores(id),
+                customer_id INTEGER NOT NULL REFERENCES customers(id),
+
+                reward_entry_id INTEGER REFERENCES reward_entries(id),
+                payout_id INTEGER REFERENCES payouts(id),
+
+                message_type VARCHAR NOT NULL DEFAULT 'reward_points',
+
+                sent_by_user_id INTEGER REFERENCES users(id),
+
+                phone_number VARCHAR NOT NULL,
+
+                template_name VARCHAR,
+                template_language VARCHAR DEFAULT 'en',
+
+                message_preview TEXT,
+
+                added_points DOUBLE PRECISION NOT NULL DEFAULT 0,
+                redeemed_points DOUBLE PRECISION NOT NULL DEFAULT 0,
+                payout_value DOUBLE PRECISION,
+                total_points DOUBLE PRECISION NOT NULL DEFAULT 0,
+
+                status VARCHAR NOT NULL DEFAULT 'pending',
+
+                provider_message_id VARCHAR,
+                error_message TEXT,
+                provider_response TEXT,
+
+                sent_at TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ADD COLUMN IF NOT EXISTS payout_id INTEGER;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ADD COLUMN IF NOT EXISTS message_type VARCHAR DEFAULT 'reward_points';
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ADD COLUMN IF NOT EXISTS redeemed_points DOUBLE PRECISION DEFAULT 0.0;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ADD COLUMN IF NOT EXISTS payout_value DOUBLE PRECISION;
+        """))
+
+        connection.execute(text("""
+            UPDATE whatsapp_message_logs
+            SET message_type = 'reward_points'
+            WHERE message_type IS NULL;
+        """))
+
+        connection.execute(text("""
+            UPDATE whatsapp_message_logs
+            SET redeemed_points = 0.0
+            WHERE redeemed_points IS NULL;
+        """))
+
+        connection.execute(text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM pg_constraint
+                    WHERE conname = 'fk_whatsapp_message_logs_payout_id'
+                ) THEN
+                    ALTER TABLE whatsapp_message_logs
+                    ADD CONSTRAINT fk_whatsapp_message_logs_payout_id
+                    FOREIGN KEY (payout_id) REFERENCES payouts(id);
+                END IF;
+            END $$;
+        """))
+
+        # -----------------------------
         # DECIMAL POINT MIGRATIONS
         # Keep these at the end after all tables exist.
         # -----------------------------
@@ -219,6 +364,18 @@ def run_temporary_migrations():
             ALTER TABLE reward_entries
             ALTER COLUMN total_points TYPE DOUBLE PRECISION
             USING total_points::DOUBLE PRECISION;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE reward_entry_items
+            ALTER COLUMN quantity TYPE DOUBLE PRECISION
+            USING quantity::DOUBLE PRECISION;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE reward_entry_items
+            ALTER COLUMN points_per_unit TYPE DOUBLE PRECISION
+            USING points_per_unit::DOUBLE PRECISION;
         """))
 
         connection.execute(text("""
@@ -248,7 +405,7 @@ run_temporary_migrations()
 # ------------------------------------------------------------------
 app = FastAPI(
     title="Aerostate - Loyalty Program API",
-    version="2.1.0",
+    version="2.2.0",
 )
 
 
@@ -298,6 +455,7 @@ app.include_router(reward_entries.router)
 app.include_router(payouts.router)
 app.include_router(leaderboard.router)
 app.include_router(app_settings.router)
+app.include_router(messages.router)
 app.include_router(dev.router)
 
 
@@ -309,7 +467,7 @@ def read_root():
     return {
         "project": "Aerostate - Loyalty Program",
         "status": "online",
-        "version": "2.1.0",
+        "version": "2.2.0",
     }
 
 

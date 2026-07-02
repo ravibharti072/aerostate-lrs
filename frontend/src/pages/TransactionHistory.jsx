@@ -3,7 +3,6 @@ import {
   FiArrowLeft,
   FiClock,
   FiSearch,
-  FiRefreshCw,
   FiAward,
   FiUser,
   FiPlusCircle,
@@ -397,7 +396,6 @@ function TransactionHistory({ onBack }) {
 
         const isEarnTxn = normalizeTxnType(txn) === "POINTS_CREDIT";
 
-        // Reward-entry item transactions are displayed through grouped records above.
         return !(isRewardItemTransaction && isEarnTxn);
       });
 
@@ -554,8 +552,8 @@ function TransactionHistory({ onBack }) {
     setDeletePassword("");
   };
 
-  const handleEditChange = (e) => {
-    const { name, value } = e.target;
+  const handleEditChange = (event) => {
+    const { name, value } = event.target;
 
     if (name === "loyalty_item_id") {
       setEditForm((prev) => ({
@@ -587,8 +585,8 @@ function TransactionHistory({ onBack }) {
     return roundToTwo(quantity * points);
   }, [editForm.quantity, selectedItemPoints]);
 
-  const updateTransaction = async (e) => {
-    e.preventDefault();
+  const updateTransaction = async (event) => {
+    event.preventDefault();
 
     if (!editingTxn?.reward_entry_item_id) {
       showToast("error", "Invalid reward transaction selected.");
@@ -650,8 +648,8 @@ function TransactionHistory({ onBack }) {
     }
   };
 
-  const deleteTransaction = async (e) => {
-    e.preventDefault();
+  const deleteTransaction = async (event) => {
+    event.preventDefault();
 
     const transactionId = getTxnId(deletingTxn);
 
@@ -705,28 +703,30 @@ function TransactionHistory({ onBack }) {
           </div>
         )}
 
-        <div className="ast-header">
-          <button type="button" onClick={handleBack} className="ast-back-btn">
-            <FiArrowLeft size={16} />
-            Back
-          </button>
+        <section className="ast-header-card">
+          <div className="ast-header-left">
+            <button type="button" onClick={handleBack} className="ast-back-btn">
+              <FiArrowLeft />
+              Back
+            </button>
 
-          <div className="ast-title-wrap">
-            <h2 className="ast-title">
-              <FiClock size={24} color="#2563eb" />
-              Transaction History
-            </h2>
+            <div className="ast-title-icon">
+              <FiClock />
+            </div>
 
-            <p className="ast-subtitle">
-              Reward entries are grouped as one transaction. Click View Details
-              to edit or delete individual item rows.
-            </p>
+            <div>
+              <h1 className="ast-title">Transaction History</h1>
+              <p className="ast-subtitle">
+                Reward entries are grouped as one transaction. Click View
+                Details to edit or delete individual item rows.
+              </p>
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div className="ast-summary-grid">
+        <section className="ast-summary-grid">
           <SummaryCard
-            icon={<FiPlusCircle size={20} color="#059669" />}
+            icon={<FiPlusCircle />}
             iconClass="green"
             label="Points Earned"
             value={roundToTwo(totalEarned)}
@@ -734,7 +734,7 @@ function TransactionHistory({ onBack }) {
           />
 
           <SummaryCard
-            icon={<FiMinusCircle size={20} color="#dc2626" />}
+            icon={<FiMinusCircle />}
             iconClass="red"
             label="Points Used"
             value={roundToTwo(totalUsed)}
@@ -742,7 +742,7 @@ function TransactionHistory({ onBack }) {
           />
 
           <SummaryCard
-            icon={<FiAward size={20} color="#2563eb" />}
+            icon={<FiAward />}
             iconClass="blue"
             label="Net Points"
             value={netPoints}
@@ -750,31 +750,31 @@ function TransactionHistory({ onBack }) {
           />
 
           <SummaryCard
-            icon={<FiUser size={20} color="#7c3aed" />}
+            icon={<FiUser />}
             iconClass="purple"
             label="Transactions"
             value={transactionRecords.length}
             valueClass="purple"
             plain
           />
-        </div>
+        </section>
 
-        <div className="ast-toolbar">
+        <section className="ast-toolbar-card">
           <div className="ast-search-wrapper">
-            <FiSearch size={16} className="ast-search-icon" />
+            <FiSearch className="ast-search-icon" />
 
             <input
               type="text"
               placeholder="Search date, customer, phone, item or unit..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(event) => setSearchTerm(event.target.value)}
               className="ast-search-input"
             />
           </div>
 
           <select
             value={selectedCustomerId}
-            onChange={(e) => setSelectedCustomerId(e.target.value)}
+            onChange={(event) => setSelectedCustomerId(event.target.value)}
             className="ast-filter-select"
           >
             <option value="all">All Customers</option>
@@ -788,28 +788,23 @@ function TransactionHistory({ onBack }) {
 
           <select
             value={entryType}
-            onChange={(e) => setEntryType(e.target.value)}
+            onChange={(event) => setEntryType(event.target.value)}
             className="ast-filter-select"
           >
             <option value="all">All Transaction Types</option>
             <option value="POINTS_CREDIT">Earned Points</option>
             <option value="POINTS_DEBIT">Used Points</option>
           </select>
+        </section>
 
-          <button
-            type="button"
-            onClick={fetchData}
-            className="ast-refresh-btn"
-            disabled={loading}
-          >
-            <FiRefreshCw size={16} />
-            {loading ? "Loading..." : "Refresh"}
-          </button>
-        </div>
-
-        <div className="ast-table-card">
+        <section className="ast-table-card">
           <div className="ast-table-header">
-            <h3 className="ast-table-title">Transaction History</h3>
+            <div>
+              <h2 className="ast-table-title">Transaction History</h2>
+              <p className="ast-table-subtitle">
+                Grouped reward transactions and point activity.
+              </p>
+            </div>
 
             <span className="ast-table-count">
               {filteredTransactions.length} records
@@ -835,7 +830,7 @@ function TransactionHistory({ onBack }) {
                 {loading ? (
                   <tr>
                     <td colSpan="8" className="ast-empty-cell">
-                      Loading...
+                      Loading transaction history...
                     </td>
                   </tr>
                 ) : paginatedTransactions.length === 0 ? (
@@ -890,16 +885,17 @@ function TransactionHistory({ onBack }) {
                               View Details
                             </button>
 
-                            {!isGroupedRewardTxn(txn) && canEditRewardItem(txn) && (
-                              <button
-                                type="button"
-                                onClick={() => openEditModal(txn)}
-                                className="ast-edit-btn"
-                              >
-                                <FiEdit2 size={14} />
-                                Edit
-                              </button>
-                            )}
+                            {!isGroupedRewardTxn(txn) &&
+                              canEditRewardItem(txn) && (
+                                <button
+                                  type="button"
+                                  onClick={() => openEditModal(txn)}
+                                  className="ast-edit-btn"
+                                >
+                                  <FiEdit2 />
+                                  Edit
+                                </button>
+                              )}
 
                             {!isGroupedRewardTxn(txn) && (
                               <button
@@ -907,7 +903,7 @@ function TransactionHistory({ onBack }) {
                                 onClick={() => openDeleteModal(txn)}
                                 className="ast-delete-btn"
                               >
-                                <FiTrash2 size={14} />
+                                <FiTrash2 />
                                 Delete
                               </button>
                             )}
@@ -923,7 +919,9 @@ function TransactionHistory({ onBack }) {
 
           <div className="ast-mobile-list">
             {loading ? (
-              <div className="ast-mobile-empty">Loading...</div>
+              <div className="ast-mobile-empty">
+                Loading transaction history...
+              </div>
             ) : paginatedTransactions.length === 0 ? (
               <div className="ast-mobile-empty">
                 No transaction records found.
@@ -992,9 +990,9 @@ function TransactionHistory({ onBack }) {
                         <button
                           type="button"
                           onClick={() => openEditModal(txn)}
-                          className="ast-edit-btn"
+                          className="ast-edit-btn mobile"
                         >
-                          <FiEdit2 size={14} />
+                          <FiEdit2 />
                           Edit Transaction
                         </button>
                       )}
@@ -1005,7 +1003,7 @@ function TransactionHistory({ onBack }) {
                           onClick={() => openDeleteModal(txn)}
                           className="ast-delete-btn mobile"
                         >
-                          <FiTrash2 size={14} />
+                          <FiTrash2 />
                           Delete Transaction
                         </button>
                       )}
@@ -1015,26 +1013,22 @@ function TransactionHistory({ onBack }) {
               })
             )}
           </div>
-        </div>
 
-        {totalPages > 1 && (
-          <div className="ast-pagination">
-            <span className="ast-pagination-info">
-              Page {safePage} of {totalPages} ({startIdx + 1}–
-              {Math.min(startIdx + ITEMS_PER_PAGE, filteredTransactions.length)}{" "}
-              of {filteredTransactions.length} records)
-            </span>
-
-            <div className="ast-pagination-buttons">
+          {totalPages > 1 && (
+            <div className="ast-pagination">
               <button
                 type="button"
                 onClick={() => goToPage(safePage - 1)}
                 disabled={safePage === 1}
                 className="ast-page-btn"
               >
-                <FiChevronLeft size={16} />
+                <FiChevronLeft />
                 Previous
               </button>
+
+              <span className="ast-pagination-info">
+                Page {safePage} of {totalPages}
+              </span>
 
               <button
                 type="button"
@@ -1043,24 +1037,27 @@ function TransactionHistory({ onBack }) {
                 className="ast-page-btn"
               >
                 Next
-                <FiChevronRight size={16} />
+                <FiChevronRight />
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </section>
 
         {selectedDetailsTxn && (
           <div className="ast-modal-overlay">
             <div className="ast-details-modal-box">
               <div className="ast-modal-header">
-                <h3>Transaction Details</h3>
+                <div>
+                  <h3>Transaction Details</h3>
+                  <p>View and edit item rows inside this transaction.</p>
+                </div>
 
                 <button
                   type="button"
                   onClick={() => setSelectedDetailsTxn(null)}
                   className="ast-close-btn"
                 >
-                  <FiX size={20} />
+                  <FiX />
                 </button>
               </div>
 
@@ -1133,7 +1130,7 @@ function TransactionHistory({ onBack }) {
                               className="ast-edit-btn"
                               onClick={() => openEditModal(itemTxn)}
                             >
-                              <FiEdit2 size={14} />
+                              <FiEdit2 />
                               Edit
                             </button>
 
@@ -1143,7 +1140,7 @@ function TransactionHistory({ onBack }) {
                                 className="ast-delete-btn"
                                 onClick={() => openDeleteModal(itemTxn)}
                               >
-                                <FiTrash2 size={14} />
+                                <FiTrash2 />
                                 Delete
                               </button>
                             )}
@@ -1172,27 +1169,30 @@ function TransactionHistory({ onBack }) {
           <div className="ast-modal-overlay">
             <div className="ast-modal-box">
               <div className="ast-modal-header">
-                <h3>Edit Transaction Item</h3>
+                <div>
+                  <h3>Edit Transaction Item</h3>
+                  <p>Edit date, item and quantity safely.</p>
+                </div>
 
                 <button
                   type="button"
                   onClick={closeEditModal}
                   className="ast-close-btn"
                 >
-                  <FiX size={20} />
+                  <FiX />
                 </button>
               </div>
 
               <form onSubmit={updateTransaction}>
                 <div className="ast-info-box">
-                  <FiPackage size={18} color="#2563eb" />
+                  <FiPackage />
 
                   <div>
                     <strong>{getCustomerName(editingTxn)}</strong>
 
                     <p>
-                      Edit date, item and quantity. Unit is automatically taken
-                      from Item Master.
+                      Unit is automatically taken from Item Master after item
+                      selection.
                     </p>
                   </div>
                 </div>
@@ -1222,8 +1222,8 @@ function TransactionHistory({ onBack }) {
                     {items.map((item) => (
                       <option key={item.id} value={item.id}>
                         {getItemNameFromItem(item)} -{" "}
-                        {formatPoints(item.per_point_amount || item.points || 0)} pts /{" "}
-                        {getUnitLabel(getItemUnit(item.id))}
+                        {formatPoints(item.per_point_amount || item.points || 0)}{" "}
+                        pts / {getUnitLabel(getItemUnit(item.id))}
                       </option>
                     ))}
                   </select>
@@ -1293,7 +1293,7 @@ function TransactionHistory({ onBack }) {
                     className="ast-save-btn"
                     disabled={saving}
                   >
-                    <FiSave size={15} />
+                    <FiSave />
                     {saving ? "Saving..." : "Save Changes"}
                   </button>
                 </div>
@@ -1306,7 +1306,10 @@ function TransactionHistory({ onBack }) {
           <div className="ast-modal-overlay">
             <div className="ast-modal-box">
               <div className="ast-modal-header">
-                <h3>Delete Transaction Item</h3>
+                <div>
+                  <h3>Delete Transaction Item</h3>
+                  <p>This action needs password confirmation.</p>
+                </div>
 
                 <button
                   type="button"
@@ -1314,19 +1317,19 @@ function TransactionHistory({ onBack }) {
                   className="ast-close-btn"
                   disabled={deleting}
                 >
-                  <FiX size={20} />
+                  <FiX />
                 </button>
               </div>
 
               <form onSubmit={deleteTransaction}>
                 <div className="ast-delete-warning">
-                  <FiTrash2 size={20} />
+                  <FiTrash2 />
 
                   <div>
                     <strong>Confirm transaction item delete</strong>
                     <p>
                       This will delete the selected item transaction and adjust
-                      the customer point balance. Enter your password to continue.
+                      customer point balance.
                     </p>
                   </div>
                 </div>
@@ -1362,12 +1365,14 @@ function TransactionHistory({ onBack }) {
                   <label>Password</label>
 
                   <div className="ast-password-box">
-                    <FiLock size={16} />
+                    <FiLock />
 
                     <input
                       type="password"
                       value={deletePassword}
-                      onChange={(e) => setDeletePassword(e.target.value)}
+                      onChange={(event) =>
+                        setDeletePassword(event.target.value)
+                      }
                       placeholder="Enter your password"
                       autoComplete="current-password"
                       required
@@ -1390,7 +1395,7 @@ function TransactionHistory({ onBack }) {
                     className="ast-confirm-delete-btn"
                     disabled={deleting}
                   >
-                    <FiTrash2 size={15} />
+                    <FiTrash2 />
                     {deleting ? "Deleting..." : "Delete Item"}
                   </button>
                 </div>
@@ -1419,11 +1424,10 @@ const SummaryCard = ({ icon, iconClass, label, value, valueClass, plain }) => (
 const transactionHistoryCss = `
   .ast-page {
     width: 100%;
-    max-width: 100%;
     min-height: 100vh;
-    padding: 20px 24px 40px;
-    color: #111827;
-    background-color: #ffffff;
+    padding: 24px;
+    background: #f8fafc;
+    color: #0f172a;
     box-sizing: border-box;
     overflow-x: hidden;
   }
@@ -1433,31 +1437,47 @@ const transactionHistoryCss = `
     top: 24px;
     left: 50%;
     transform: translateX(-50%);
-    color: #ffffff;
-    padding: 12px 22px;
-    border-radius: 10px;
-    font-weight: 800;
-    font-size: 14px;
     z-index: 10000;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    max-width: min(420px, calc(100vw - 28px));
+    padding: 14px 22px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 900;
+    box-shadow: 0 14px 35px rgba(15, 23, 42, 0.22);
+    max-width: min(460px, calc(100vw - 28px));
+    min-width: min(280px, calc(100vw - 28px));
     text-align: center;
   }
 
   .ast-toast.success {
-    background-color: #16a34a;
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
   }
 
   .ast-toast.error {
-    background-color: #dc2626;
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
   }
 
-  .ast-header {
+  .ast-header-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 22px;
+    margin-bottom: 18px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: center;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+  }
+
+  .ast-header-left {
     display: flex;
     align-items: center;
-    gap: 16px;
-    margin-bottom: 28px;
-    flex-wrap: wrap;
+    gap: 14px;
+    min-width: 0;
   }
 
   .ast-back-btn {
@@ -1465,95 +1485,120 @@ const transactionHistoryCss = `
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 8px 16px;
-    background-color: #ffffff;
-    color: #374151;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 700;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #2563eb;
+    height: 42px;
+    padding: 0 16px;
+    border-radius: 10px;
     font-size: 14px;
-    min-height: 40px;
+    font-weight: 900;
+    cursor: pointer;
+    flex: 0 0 auto;
   }
 
-  .ast-title-wrap {
-    flex: 1;
-    min-width: 0;
+  .ast-back-btn:hover {
+    background: #dbeafe;
+  }
+
+  .ast-title-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: #eff6ff;
+    color: #2563eb;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    flex: 0 0 auto;
   }
 
   .ast-title {
     margin: 0;
-    font-size: 24px;
-    font-weight: 900;
-    color: #111827;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    font-size: 26px;
+    font-weight: 950;
+    letter-spacing: -0.03em;
+    color: #0f172a;
   }
 
   .ast-subtitle {
     margin: 6px 0 0;
-    color: #6b7280;
+    color: #64748b;
     font-size: 14px;
-    line-height: 1.5;
+    font-weight: 650;
+    line-height: 1.45;
+  }
+
+  .ast-save-btn:disabled,
+  .ast-cancel-btn:disabled,
+  .ast-confirm-delete-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
   }
 
   .ast-summary-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 18px;
-    margin-bottom: 28px;
+    gap: 16px;
+    margin-bottom: 18px;
   }
 
   .ast-summary-card {
-    background-color: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 14px;
-    padding: 24px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 18px;
     display: flex;
     align-items: center;
-    gap: 18px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    gap: 15px;
     min-width: 0;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
   }
 
   .ast-summary-icon {
     width: 46px;
     height: 46px;
-    border-radius: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    border-radius: 15px;
+    display: grid;
+    place-items: center;
+    font-size: 21px;
+    flex: 0 0 auto;
   }
 
   .ast-summary-icon.green {
-    background-color: #ecfdf5;
+    background: #ecfdf5;
+    color: #059669;
   }
 
   .ast-summary-icon.red {
-    background-color: #fef2f2;
+    background: #fef2f2;
+    color: #dc2626;
   }
 
   .ast-summary-icon.blue {
-    background-color: #eff6ff;
+    background: #eff6ff;
+    color: #2563eb;
   }
 
   .ast-summary-icon.purple {
-    background-color: #f5f3ff;
+    background: #f5f3ff;
+    color: #7c3aed;
   }
 
   .ast-summary-label {
     margin: 0;
-    color: #6b7280;
-    font-size: 14px;
-    font-weight: 700;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 900;
   }
 
   .ast-summary-value {
     margin: 6px 0 0;
-    font-size: 28px;
-    font-weight: 900;
+    color: #0f172a;
+    font-size: 26px;
+    font-weight: 950;
+    line-height: 1;
+    letter-spacing: -0.03em;
     overflow-wrap: anywhere;
   }
 
@@ -1573,107 +1618,102 @@ const transactionHistoryCss = `
     color: #7c3aed;
   }
 
-  .ast-toolbar {
-    display: flex;
+  .ast-toolbar-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 10px;
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) 220px 240px;
     gap: 12px;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-    align-items: center;
+    margin-bottom: 18px;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
   }
 
   .ast-search-wrapper {
-    position: relative;
-    flex: 1;
-    min-width: 240px;
-    max-width: 420px;
+    height: 44px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 13px;
+    color: #94a3b8;
+    min-width: 0;
   }
 
   .ast-search-icon {
-    position: absolute;
-    top: 50%;
-    left: 12px;
-    transform: translateY(-50%);
-    color: #9ca3af;
+    color: #94a3b8;
+    flex: 0 0 auto;
   }
 
   .ast-search-input {
-    width: 100%;
-    padding: 10px 15px 10px 36px;
-    border-radius: 8px;
-    border: 1px solid #d1d5db;
-    font-size: 14px;
+    border: none;
+    background: transparent;
     outline: none;
-    background-color: #ffffff;
-    color: #111827;
-    box-sizing: border-box;
-    min-height: 42px;
+    width: 100%;
+    min-width: 0;
+    color: #0f172a;
+    font-size: 14px;
+    font-weight: 750;
   }
 
   .ast-filter-select {
-    padding: 10px 12px;
-    border-radius: 8px;
-    border: 1px solid #d1d5db;
-    background-color: #ffffff;
-    color: #111827;
-    font-weight: 700;
-    font-size: 14px;
+    height: 44px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #0f172a;
+    padding: 0 12px;
+    font-weight: 900;
     outline: none;
-    min-height: 42px;
-  }
-
-  .ast-refresh-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 10px 16px;
-    background-color: #f9fafb;
-    color: #374151;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 700;
-    font-size: 14px;
-    min-height: 42px;
-  }
-
-  .ast-refresh-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
+    min-width: 0;
   }
 
   .ast-table-card {
-    background-color: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
     overflow: hidden;
-    border: 1px solid #e5e7eb;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
     max-width: 100%;
   }
 
   .ast-table-header {
-    padding: 16px 18px;
-    border-bottom: 1px solid #e5e7eb;
+    padding: 18px 20px;
+    border-bottom: 1px solid #e2e8f0;
     display: flex;
     justify-content: space-between;
+    gap: 14px;
     align-items: center;
-    gap: 12px;
+    background: #ffffff;
   }
 
   .ast-table-title {
     margin: 0;
-    font-size: 16px;
-    font-weight: 900;
-    color: #111827;
+    color: #0f172a;
+    font-size: 19px;
+    font-weight: 950;
+  }
+
+  .ast-table-subtitle {
+    margin: 6px 0 0;
+    color: #64748b;
+    font-size: 14px;
+    font-weight: 650;
   }
 
   .ast-table-count {
-    background-color: #eff6ff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #eff6ff;
     color: #2563eb;
-    padding: 4px 12px;
-    border-radius: 30px;
+    padding: 8px 13px;
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 950;
     white-space: nowrap;
   }
 
@@ -1687,20 +1727,20 @@ const transactionHistoryCss = `
   .ast-table {
     width: 100%;
     min-width: 1080px;
-    text-align: left;
-    border-collapse: collapse;
-  }
-
-  .ast-table thead tr {
-    background-color: #f9fafb;
-    border-bottom: 2px solid #e5e7eb;
+    border-collapse: separate;
+    border-spacing: 0;
   }
 
   .ast-table th {
+    background: #f8fafc;
+    color: #64748b;
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 950;
     padding: 14px 16px;
-    color: #374151;
-    font-size: 14px;
-    font-weight: 800;
+    border-bottom: 1px solid #e2e8f0;
     white-space: nowrap;
   }
 
@@ -1714,63 +1754,64 @@ const transactionHistoryCss = `
     text-align: center;
   }
 
-  .ast-table tbody tr {
-    border-bottom: 1px solid #f3f4f6;
-  }
-
   .ast-table td {
-    padding: 14px 16px;
-    font-size: 14px;
-    color: #4b5563;
+    padding: 16px;
+    border-bottom: 1px solid #eef2f7;
     vertical-align: middle;
+    color: #0f172a;
+    font-size: 14px;
+    font-weight: 750;
     white-space: nowrap;
   }
 
+  .ast-table tbody tr:hover {
+    background: #f8fafc;
+  }
+
   .ast-table td.customer {
-    font-weight: 800;
-    color: #111827;
+    font-weight: 950;
+    color: #0f172a;
   }
 
   .ast-items-preview {
     display: inline-block;
-    max-width: 300px;
+    max-width: 320px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #111827;
-    font-weight: 800;
+    color: #0f172a;
+    font-weight: 900;
   }
 
   .ast-type-badge {
-    display: inline-block;
-    padding: 4px 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 7px 11px;
     border-radius: 999px;
     font-size: 12px;
-    font-weight: 800;
-    border: 1px solid;
+    font-weight: 950;
     white-space: nowrap;
   }
 
   .ast-type-badge.credit {
-    background-color: #dcfce7;
-    color: #166534;
-    border-color: #bbf7d0;
+    background: #dcfce7;
+    color: #059669;
   }
 
   .ast-type-badge.debit {
-    background-color: #fee2e2;
-    color: #991b1b;
-    border-color: #fecaca;
+    background: #fee2e2;
+    color: #dc2626;
   }
 
   .ast-table td.points {
     font-size: 15px;
-    font-weight: 900;
+    font-weight: 950;
   }
 
   .ast-table td.points.credit,
   .credit-text {
-    color: #16a34a;
+    color: #059669;
   }
 
   .ast-table td.points.debit,
@@ -1791,184 +1832,85 @@ const transactionHistoryCss = `
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 7px 12px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 800;
+    gap: 7px;
+    border-radius: 10px;
+    padding: 9px 12px;
     font-size: 13px;
-    min-height: 36px;
+    font-weight: 950;
+    cursor: pointer;
+    white-space: nowrap;
   }
 
   .ast-view-btn {
-    background-color: #eef2ff;
-    color: #4338ca;
+    background: #eef2ff;
+    color: #4f46e5;
     border: 1px solid #c7d2fe;
   }
 
-  .ast-view-btn.mobile {
-    width: 100%;
-  }
-
   .ast-edit-btn {
-    background-color: #eff6ff;
+    background: #eff6ff;
     color: #2563eb;
     border: 1px solid #bfdbfe;
   }
 
   .ast-delete-btn {
-    background-color: #fef2f2;
+    background: #fef2f2;
     color: #dc2626;
     border: 1px solid #fecaca;
   }
 
-  .ast-delete-btn.mobile {
-    width: 100%;
-    margin-top: 10px;
-  }
-
   .ast-empty-cell {
-    padding: 40px !important;
+    padding: 42px 16px !important;
     text-align: center;
-    color: #6b7280 !important;
+    color: #64748b !important;
     font-size: 15px !important;
-    font-weight: 800;
+    font-weight: 850;
   }
 
   .ast-mobile-list {
     display: none;
   }
 
-  .ast-mobile-card {
-    background: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 14px;
-    padding: 14px;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
-  }
-
-  .ast-mobile-card-top {
+  .ast-pagination {
+    padding: 16px 20px;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
-  }
-
-  .ast-mobile-date {
-    margin: 0 0 5px;
-    color: #6b7280;
-    font-size: 12px;
-    font-weight: 800;
-  }
-
-  .ast-mobile-card h3 {
-    margin: 0;
-    color: #111827;
-    font-size: 16px;
-    font-weight: 900;
-    overflow-wrap: anywhere;
-  }
-
-  .ast-mobile-phone {
-    margin: 5px 0 0;
-    color: #4b5563;
-    font-size: 13px;
-    font-weight: 700;
-  }
-
-  .ast-mobile-detail-grid {
-    margin-top: 14px;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .ast-mobile-detail-grid div {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 10px;
-    min-width: 0;
-  }
-
-  .ast-mobile-detail-grid span {
-    display: block;
-    color: #6b7280;
-    font-size: 12px;
-    font-weight: 800;
-  }
-
-  .ast-mobile-detail-grid strong {
-    display: block;
-    margin-top: 5px;
-    color: #111827;
-    font-size: 14px;
-    font-weight: 900;
-    overflow-wrap: anywhere;
-  }
-
-  .ast-mobile-actions {
-    display: grid;
-    gap: 10px;
-    margin-top: 14px;
-  }
-
-  .ast-mobile-actions .ast-edit-btn {
-    width: 100%;
-  }
-
-  .ast-mobile-empty {
-    padding: 24px;
-    text-align: center;
-    color: #6b7280;
-    font-weight: 800;
-  }
-
-  .ast-pagination {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 20px;
-    flex-wrap: wrap;
-    gap: 10px;
+    border-top: 1px solid #e2e8f0;
+    background: #ffffff;
   }
 
   .ast-pagination-info {
-    font-size: 14px;
-    color: #6b7280;
-    font-weight: 700;
-  }
-
-  .ast-pagination-buttons {
-    display: flex;
-    gap: 8px;
+    font-weight: 950;
+    color: #64748b;
+    text-align: center;
   }
 
   .ast-page-btn {
+    height: 40px;
+    padding: 0 15px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #0f172a;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 8px 16px;
-    background-color: #ffffff;
-    color: #374151;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    font-weight: 700;
-    font-size: 14px;
+    gap: 8px;
+    font-weight: 950;
     cursor: pointer;
-    min-height: 38px;
   }
 
   .ast-page-btn:disabled {
-    opacity: 0.5;
+    opacity: 0.55;
     cursor: not-allowed;
   }
 
   .ast-modal-overlay {
     position: fixed;
     inset: 0;
-    background-color: rgba(15, 23, 42, 0.48);
+    background: rgba(15, 23, 42, 0.48);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1982,11 +1924,11 @@ const transactionHistoryCss = `
     width: min(560px, 100%);
     max-height: 90vh;
     overflow-y: auto;
-    background-color: #ffffff;
-    border-radius: 16px;
-    padding: 22px;
-    box-shadow: 0 20px 45px rgba(0,0,0,0.25);
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 24px 55px rgba(15, 23, 42, 0.28);
     box-sizing: border-box;
+    border: 1px solid #e2e8f0;
   }
 
   .ast-details-modal-box {
@@ -1994,30 +1936,53 @@ const transactionHistoryCss = `
   }
 
   .ast-modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #e2e8f0;
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     gap: 12px;
-    margin-bottom: 18px;
   }
 
   .ast-modal-header h3 {
     margin: 0;
+    color: #0f172a;
     font-size: 20px;
-    font-weight: 900;
-    color: #111827;
+    font-weight: 950;
+  }
+
+  .ast-modal-header p {
+    margin: 5px 0 0;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 750;
   }
 
   .ast-close-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    border: 1px solid #e5e7eb;
-    background-color: #ffffff;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #0f172a;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+  }
+
+  .ast-modal-box form,
+  .ast-details-modal-box > .ast-detail-summary,
+  .ast-details-modal-box > .ast-detail-note,
+  .ast-details-modal-box > .ast-detail-items-title,
+  .ast-details-modal-box > .ast-detail-items-list,
+  .ast-details-modal-box > .ast-modal-actions {
+    margin-left: 20px;
+    margin-right: 20px;
+  }
+
+  .ast-modal-box form {
+    padding: 20px 0;
   }
 
   .ast-detail-summary,
@@ -2025,16 +1990,17 @@ const transactionHistoryCss = `
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+    margin-top: 20px;
     margin-bottom: 16px;
   }
 
   .ast-detail-summary div,
   .ast-delete-summary div,
   .ast-detail-note {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    padding: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 12px;
     min-width: 0;
   }
 
@@ -2042,27 +2008,30 @@ const transactionHistoryCss = `
   .ast-delete-summary span,
   .ast-detail-note span {
     display: block;
-    color: #6b7280;
+    color: #64748b;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 950;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
 
   .ast-detail-summary strong,
   .ast-delete-summary strong,
   .ast-detail-note strong {
     display: block;
-    margin-top: 4px;
-    color: #111827;
+    margin-top: 5px;
+    color: #0f172a;
     font-size: 14px;
-    font-weight: 900;
+    font-weight: 950;
     overflow-wrap: anywhere;
   }
 
   .ast-detail-items-title {
-    margin: 16px 0 10px;
-    color: #111827;
+    margin-top: 16px;
+    margin-bottom: 10px;
+    color: #0f172a;
     font-size: 16px;
-    font-weight: 900;
+    font-weight: 950;
   }
 
   .ast-detail-items-list {
@@ -2075,22 +2044,22 @@ const transactionHistoryCss = `
     grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 14px;
-    border: 1px solid #e5e7eb;
-    border-radius: 14px;
-    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 14px;
     background: #ffffff;
   }
 
   .ast-detail-item-main h4 {
     margin: 0;
-    color: #111827;
+    color: #0f172a;
     font-size: 15px;
-    font-weight: 900;
+    font-weight: 950;
   }
 
   .ast-detail-item-main p {
-    margin: 5px 0 0;
-    color: #6b7280;
+    margin: 6px 0 0;
+    color: #64748b;
     font-size: 13px;
     font-weight: 800;
   }
@@ -2098,7 +2067,7 @@ const transactionHistoryCss = `
   .ast-detail-item-points {
     color: #2563eb;
     font-size: 15px;
-    font-weight: 900;
+    font-weight: 950;
     white-space: nowrap;
   }
 
@@ -2107,49 +2076,40 @@ const transactionHistoryCss = `
     gap: 8px;
   }
 
-  .ast-info-box {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px;
-    border-radius: 10px;
-    background-color: #eff6ff;
-    border: 1px solid #bfdbfe;
-    margin-bottom: 16px;
-  }
-
-  .ast-info-box strong {
-    color: #111827;
-  }
-
-  .ast-info-box p {
-    margin: 4px 0 0;
-    color: #4b5563;
-    font-size: 13px;
-    line-height: 1.4;
-  }
-
+  .ast-info-box,
   .ast-delete-warning {
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    padding: 12px;
-    border-radius: 10px;
-    background-color: #fef2f2;
-    border: 1px solid #fecaca;
+    padding: 13px;
+    border-radius: 14px;
     margin-bottom: 16px;
+  }
+
+  .ast-info-box {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
+  }
+
+  .ast-delete-warning {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
     color: #991b1b;
   }
 
+  .ast-info-box strong,
   .ast-delete-warning strong {
-    color: #991b1b;
+    color: #0f172a;
+    font-weight: 950;
   }
 
+  .ast-info-box p,
   .ast-delete-warning p {
     margin: 4px 0 0;
-    color: #7f1d1d;
     font-size: 13px;
-    line-height: 1.4;
+    line-height: 1.45;
+    font-weight: 750;
   }
 
   .ast-form-group {
@@ -2168,60 +2128,76 @@ const transactionHistoryCss = `
     display: block;
     margin-bottom: 7px;
     font-size: 14px;
-    font-weight: 800;
-    color: #374151;
+    font-weight: 950;
+    color: #334155;
   }
 
   .ast-form-group input,
   .ast-form-group select,
   .ast-form-group textarea {
     width: 100%;
-    padding: 11px 12px;
-    border-radius: 9px;
-    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    border: 1px solid #cbd5e1;
     font-size: 14px;
     outline: none;
     box-sizing: border-box;
-    background-color: #ffffff;
-    color: #111827;
+    background: #ffffff;
+    color: #0f172a;
+    font-weight: 750;
+  }
+
+  .ast-form-group input,
+  .ast-form-group select {
+    height: 44px;
+    padding: 0 12px;
   }
 
   .ast-form-group textarea {
-    min-height: 80px;
+    min-height: 84px;
     resize: vertical;
+    font-family: inherit;
+    padding: 12px;
+    line-height: 1.5;
+  }
+
+  .ast-form-group input:focus,
+  .ast-form-group select:focus,
+  .ast-form-group textarea:focus {
+    border-color: #2563eb;
   }
 
   .ast-password-box {
     display: flex;
     align-items: center;
     gap: 8px;
-    border: 1px solid #d1d5db;
-    border-radius: 9px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
     padding: 0 11px;
     background: #ffffff;
   }
 
   .ast-password-box svg {
-    color: #6b7280;
+    color: #64748b;
     flex-shrink: 0;
   }
 
   .ast-password-box input {
     border: none;
     padding-left: 0;
+    height: 42px;
   }
 
   .ast-readonly-unit {
     width: 100%;
-    min-height: 43px;
-    padding: 11px 12px;
-    border-radius: 9px;
-    border: 1px solid #d1d5db;
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: 12px;
+    border: 1px solid #cbd5e1;
     font-size: 14px;
     box-sizing: border-box;
-    background: #f9fafb;
-    color: #111827;
-    font-weight: 900;
+    background: #f8fafc;
+    color: #0f172a;
+    font-weight: 950;
     display: flex;
     align-items: center;
   }
@@ -2234,24 +2210,24 @@ const transactionHistoryCss = `
   }
 
   .ast-calculation-box div {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 12px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 13px;
   }
 
   .ast-calculation-box p {
     margin: 0;
-    color: #6b7280;
+    color: #64748b;
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 900;
   }
 
   .ast-calculation-box h4 {
-    margin: 6px 0 0;
-    color: #111827;
+    margin: 7px 0 0;
+    color: #0f172a;
     font-size: 22px;
-    font-weight: 900;
+    font-weight: 950;
   }
 
   .ast-modal-actions {
@@ -2259,52 +2235,54 @@ const transactionHistoryCss = `
     justify-content: flex-end;
     gap: 10px;
     margin-top: 20px;
+    margin-bottom: 20px;
   }
 
   .ast-cancel-btn,
   .ast-save-btn,
   .ast-confirm-delete-btn {
+    height: 44px;
+    padding: 0 17px;
+    border-radius: 13px;
+    cursor: pointer;
+    font-weight: 950;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
-    padding: 10px 16px;
-    border-radius: 9px;
-    cursor: pointer;
-    font-weight: 800;
-    min-height: 42px;
+    gap: 8px;
   }
 
   .ast-cancel-btn {
-    border: 1px solid #d1d5db;
-    background-color: #ffffff;
-    color: #374151;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #0f172a;
   }
 
   .ast-save-btn {
-    border: 1px solid #2563eb;
-    background-color: #2563eb;
+    border: none;
+    background: #2563eb;
     color: #ffffff;
+    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
   }
 
   .ast-confirm-delete-btn {
-    border: 1px solid #dc2626;
-    background-color: #dc2626;
+    border: none;
+    background: #dc2626;
     color: #ffffff;
+    box-shadow: 0 10px 22px rgba(220, 38, 38, 0.18);
   }
 
-  .ast-cancel-btn:disabled,
-  .ast-save-btn:disabled,
-  .ast-confirm-delete-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-
-  @media (max-width: 1100px) {
+  @media (max-width: 1200px) {
     .ast-summary-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .ast-toolbar-card {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 900px) {
     .ast-detail-item-card {
       grid-template-columns: 1fr;
       align-items: flex-start;
@@ -2320,70 +2298,44 @@ const transactionHistoryCss = `
     }
   }
 
-  @media (max-width: 900px) {
-    .ast-page {
-      padding: 16px;
-    }
-
-    .ast-toolbar {
-      align-items: stretch;
-      flex-direction: column;
-    }
-
-    .ast-search-wrapper {
-      max-width: none;
-      min-width: 0;
-      width: 100%;
-    }
-
-    .ast-filter-select,
-    .ast-refresh-btn {
-      width: 100%;
-    }
-  }
-
   @media (max-width: 768px) {
     .ast-page {
       padding: 12px;
     }
 
-    .ast-toast {
-      top: 70px;
-    }
-
-    .ast-header {
-      align-items: flex-start;
+    .ast-header-card {
       flex-direction: column;
-      gap: 12px;
-      margin-bottom: 20px;
+      align-items: stretch;
+      padding: 16px;
     }
 
-    .ast-back-btn {
-      width: 100%;
+    .ast-header-left {
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+
+    .ast-title-icon {
+      width: 44px;
+      height: 44px;
+      font-size: 20px;
     }
 
     .ast-title {
       font-size: 23px;
-      align-items: flex-start;
     }
 
     .ast-summary-grid {
       grid-template-columns: 1fr;
       gap: 12px;
-      margin-bottom: 22px;
-    }
-
-    .ast-summary-card {
-      padding: 18px;
     }
 
     .ast-summary-value {
-      font-size: 25px;
+      font-size: 23px;
     }
 
     .ast-table-header {
-      align-items: flex-start;
       flex-direction: column;
+      align-items: flex-start;
     }
 
     .ast-table-scroll {
@@ -2393,23 +2345,109 @@ const transactionHistoryCss = `
     .ast-mobile-list {
       display: grid;
       gap: 12px;
+      padding: 12px;
+      background: #f8fafc;
+    }
+
+    .ast-mobile-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
       padding: 14px;
-      background: #f9fafb;
+    }
+
+    .ast-mobile-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .ast-mobile-date {
+      margin: 0 0 5px;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .ast-mobile-card h3 {
+      margin: 0;
+      color: #0f172a;
+      font-size: 16px;
+      font-weight: 950;
+      overflow-wrap: anywhere;
+    }
+
+    .ast-mobile-phone {
+      margin: 6px 0 0;
+      color: #475569;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .ast-mobile-detail-grid {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .ast-mobile-detail-grid div {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 10px;
+      min-width: 0;
+    }
+
+    .ast-mobile-detail-grid span {
+      display: block;
+      color: #64748b;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .ast-mobile-detail-grid strong {
+      display: block;
+      margin-top: 5px;
+      color: #0f172a;
+      font-size: 14px;
+      font-weight: 950;
+      overflow-wrap: anywhere;
+    }
+
+    .ast-mobile-actions {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .ast-view-btn.mobile,
+    .ast-edit-btn.mobile,
+    .ast-delete-btn.mobile {
+      width: 100%;
+    }
+
+    .ast-mobile-empty {
+      padding: 24px;
+      text-align: center;
+      color: #64748b;
+      font-weight: 850;
     }
 
     .ast-pagination {
-      align-items: stretch;
-      flex-direction: column;
+      flex-wrap: wrap;
+      padding: 14px;
     }
 
     .ast-pagination-info {
-      text-align: center;
+      width: 100%;
+      order: -1;
     }
 
-    .ast-pagination-buttons {
-      width: 100%;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+    .ast-page-btn {
+      flex: 1;
+      min-width: 130px;
     }
 
     .ast-modal-overlay {
@@ -2421,15 +2459,14 @@ const transactionHistoryCss = `
     .ast-details-modal-box {
       width: 100%;
       max-height: 92vh;
-      border-radius: 18px 18px 0 0;
-      padding: 20px;
+      border-radius: 20px 20px 0 0;
     }
 
     .ast-form-row,
     .ast-delete-summary,
-    .ast-detail-summary {
+    .ast-detail-summary,
+    .ast-calculation-box {
       grid-template-columns: 1fr;
-      gap: 10px;
     }
 
     .ast-modal-actions {
@@ -2444,12 +2481,12 @@ const transactionHistoryCss = `
   }
 
   @media (max-width: 420px) {
-    .ast-page {
-      padding: 10px;
+    .ast-header-left {
+      flex-direction: column;
     }
 
-    .ast-title {
-      font-size: 21px;
+    .ast-back-btn {
+      width: 100%;
     }
 
     .ast-mobile-card-top {
@@ -2458,24 +2495,14 @@ const transactionHistoryCss = `
 
     .ast-type-badge {
       width: 100%;
-      text-align: center;
     }
 
-    .ast-mobile-detail-grid {
-      grid-template-columns: 1fr;
+    .ast-pagination {
+      flex-direction: column;
     }
 
-    .ast-pagination-buttons {
-      grid-template-columns: 1fr;
-    }
-
-    .ast-calculation-box {
-      grid-template-columns: 1fr;
-    }
-
-    .ast-modal-box,
-    .ast-details-modal-box {
-      padding: 16px;
+    .ast-page-btn {
+      width: 100%;
     }
   }
 `;

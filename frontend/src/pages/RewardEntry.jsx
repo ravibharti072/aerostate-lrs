@@ -1,4 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  FiArrowLeft,
+  FiAward,
+  FiUser,
+  FiPackage,
+  FiPlusCircle,
+  FiSave,
+  FiX,
+  FiMessageCircle,
+  FiEye,
+  FiFileText,
+  FiCheckCircle,
+} from "react-icons/fi";
 import api from "../api/axios";
 
 const RECENT_ENTRY_LIMIT = 20;
@@ -41,7 +54,7 @@ const getApiErrorMessage = (error) => {
   const detail = error?.response?.data?.detail;
 
   if (!detail) {
-    return "Something went wrong. Please check backend Reward Entry API.";
+    return "Something went wrong. Please check backend API.";
   }
 
   if (typeof detail === "string") {
@@ -178,16 +191,6 @@ const getItemPreviewNames = (entry) => {
   return items.map((item) => item?.item_name || item?.loyalty_item_id || "-");
 };
 
-const getItemDetailLine = (item) => {
-  const itemName = item?.item_name || item?.loyalty_item_id || "-";
-  const quantity = item?.quantity ?? "-";
-  const unit = getUnitLabel(item?.unit);
-  const pointsPerUnit = formatPoints(item?.points_per_unit || 0);
-  const totalPoints = formatPoints(item?.total_points || 0);
-
-  return `${itemName} • ${quantity} ${unit} × ${pointsPerUnit} = ${totalPoints} pts`;
-};
-
 export default function RewardEntry({ onBack }) {
   const [customers, setCustomers] = useState([]);
   const [items, setItems] = useState([]);
@@ -209,8 +212,18 @@ export default function RewardEntry({ onBack }) {
   const [saving, setSaving] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
   const [creatingQuickItem, setCreatingQuickItem] = useState(false);
+  const [sendingWhatsAppId, setSendingWhatsAppId] = useState(null);
 
   const [toast, setToast] = useState(null);
+
+  const handleBack = () => {
+    if (typeof onBack === "function") {
+      onBack();
+      return;
+    }
+
+    window.location.href = "/dashboard";
+  };
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -297,6 +310,26 @@ export default function RewardEntry({ onBack }) {
       total_points: totalPoints,
     };
   }, [addItemForm, selectedAddItem]);
+
+  const pageSummary = useMemo(() => {
+    const recentPoints = entries.reduce(
+      (sum, entry) => sum + Number(getEntryTotalPoints(entry) || 0),
+      0
+    );
+
+    const recentItems = entries.reduce(
+      (sum, entry) => sum + Number(getEntryTotalItems(entry) || 0),
+      0
+    );
+
+    return {
+      customers: customers.length,
+      itemMaster: items.length,
+      recentEntries: entries.length,
+      recentItems,
+      recentPoints,
+    };
+  }, [customers, items, entries]);
 
   const fetchData = async () => {
     try {
@@ -405,7 +438,9 @@ export default function RewardEntry({ onBack }) {
 
       if (!row.unit) {
         showToast(
-          `Unit not found for selected item in row ${index + 1}. Please edit item in Item Master and save unit.`,
+          `Unit not found for selected item in row ${
+            index + 1
+          }. Please edit item in Item Master and save unit.`,
           "error"
         );
         return false;
@@ -489,8 +524,8 @@ export default function RewardEntry({ onBack }) {
     });
   };
 
-  const handleQuickItemSubmit = async (e) => {
-    e.preventDefault();
+  const handleQuickItemSubmit = async (event) => {
+    event.preventDefault();
 
     const itemName = quickItemForm.item_name.trim();
     const sku = quickItemForm.sku.trim();
@@ -538,7 +573,9 @@ export default function RewardEntry({ onBack }) {
 
       const createdItem =
         (responseItem?.id &&
-          latestItems.find((item) => Number(item.id) === Number(responseItem.id))) ||
+          latestItems.find(
+            (item) => Number(item.id) === Number(responseItem.id)
+          )) ||
         latestItems.find((item) => {
           const sameName =
             String(item?.item_name || item?.name || "").trim().toLowerCase() ===
@@ -569,8 +606,8 @@ export default function RewardEntry({ onBack }) {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
     if (!validateForm()) return;
 
@@ -668,8 +705,8 @@ export default function RewardEntry({ onBack }) {
     return true;
   };
 
-  const handleAddItemSubmit = async (e) => {
-    e.preventDefault();
+  const handleAddItemSubmit = async (event) => {
+    event.preventDefault();
 
     if (!validateAddItemForm()) return;
 
@@ -706,6 +743,64 @@ export default function RewardEntry({ onBack }) {
     }
   };
 
+  const sendWhatsAppForEntry = async (entry, event, allowResend = false) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    const rewardEntryId = getEntryId(entry);
+
+    if (!rewardEntryId) {
+      showToast("Reward entry id not found.", "error");
+      return;
+    }
+
+    try {
+      setSendingWhatsAppId(rewardEntryId);
+
+      const response = await api.post(
+        `/messages/reward-entry/${rewardEntryId}/whatsapp/send`,
+        {
+          allow_resend: allowResend,
+        }
+      );
+
+      if (response.data?.success) {
+        showToast("WhatsApp message sent successfully.", "success");
+        fetchData();
+      } else {
+        showToast(
+          response.data?.error_message || "WhatsApp message failed.",
+          "error"
+        );
+      }
+    } catch (error) {
+      const detail = error?.response?.data?.detail;
+
+      if (
+        error?.response?.status === 409 &&
+        typeof detail === "string" &&
+        detail.toLowerCase().includes("already sent")
+      ) {
+        const confirmResend = window.confirm(
+          "WhatsApp message already sent for this transaction. Do you want to resend?"
+        );
+
+        if (confirmResend) {
+          await sendWhatsAppForEntry(entry, event, true);
+        }
+
+        return;
+      }
+
+      console.error("WhatsApp send error:", error);
+      showToast(getApiErrorMessage(error), "error");
+    } finally {
+      setSendingWhatsAppId(null);
+    }
+  };
+
   return (
     <>
       <style>{rewardEntryCss}</style>
@@ -721,12 +816,432 @@ export default function RewardEntry({ onBack }) {
           </div>
         )}
 
+        <section className="asr-header-card">
+          <div className="asr-header-left">
+            <button type="button" className="asr-back-btn" onClick={handleBack}>
+              <FiArrowLeft />
+              Back
+            </button>
+
+            <div className="asr-title-icon">
+              <FiAward />
+            </div>
+
+            <div>
+              <h1 className="asr-title">Reward Entry</h1>
+              <p className="asr-subtitle">
+                Select customer, add one or more items, calculate decimal reward
+                points, and send WhatsApp manually.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="asr-header-item-master-btn"
+            onClick={openQuickItemModal}
+            disabled={saving || loading}
+          >
+            <FiPlusCircle />
+            Add Item Master
+          </button>
+        </section>
+
+        <section className="asr-summary-grid">
+          <SummaryCard
+            icon={<FiUser />}
+            label="Customers"
+            value={pageSummary.customers}
+            tone="blue"
+          />
+
+          <SummaryCard
+            icon={<FiPackage />}
+            label="Item Master"
+            value={pageSummary.itemMaster}
+            tone="green"
+          />
+
+          <SummaryCard
+            icon={<FiFileText />}
+            label="Recent Entries"
+            value={pageSummary.recentEntries}
+            tone="purple"
+          />
+
+          <SummaryCard
+            icon={<FiAward />}
+            label="Recent Points"
+            value={formatPoints(pageSummary.recentPoints)}
+            tone="orange"
+          />
+        </section>
+
+        <section className="asr-form-card">
+          <div className="asr-card-head">
+            <div>
+              <h2 className="asr-card-title">Create Reward Entry</h2>
+              <p className="asr-card-subtitle">
+                One reward entry is one transaction or bill. Add multiple item
+                rows inside the same transaction.
+              </p>
+            </div>
+
+            <span className="asr-record-badge">
+              {itemRows.length} row{itemRows.length === 1 ? "" : "s"}
+            </span>
+          </div>
+
+          <div className="asr-card-body">
+            <form onSubmit={handleSubmit}>
+              <div className="asr-top-form-grid">
+                <div className="asr-inner-card">
+                  <div className="asr-form-group">
+                    <label className="asr-label">Customer *</label>
+
+                    <select
+                      className="asr-input"
+                      value={customerId}
+                      onChange={(event) => setCustomerId(event.target.value)}
+                      disabled={saving || loading}
+                    >
+                      <option value="">Select customer</option>
+
+                      {customers.map((customer) => (
+                        <option key={customer.id} value={customer.id}>
+                          {getCustomerName(customer)} -{" "}
+                          {getCustomerPhone(customer)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="asr-selected-box">
+                    <p>Selected Customer</p>
+                    <h3>
+                      {selectedCustomer
+                        ? `${getCustomerName(
+                            selectedCustomer
+                          )} (${getCustomerPhone(selectedCustomer)})`
+                        : "-"}
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="asr-inner-card">
+                  <div className="asr-form-group">
+                    <label className="asr-label">Entry Date Optional</label>
+
+                    <input
+                      className="asr-input"
+                      type="date"
+                      value={entryDate}
+                      onChange={(event) => setEntryDate(event.target.value)}
+                      disabled={saving}
+                    />
+                  </div>
+
+                  <div className="asr-selected-box">
+                    <p>Entry Date</p>
+                    <h3>
+                      {entryDate
+                        ? new Date(
+                            `${entryDate}T12:00:00`
+                          ).toLocaleDateString("en-IN")
+                        : "Today / Auto"}
+                    </h3>
+                  </div>
+                </div>
+              </div>
+
+              <div className="asr-items-section">
+                <div className="asr-items-header">
+                  <div>
+                    <h3 className="asr-items-title">Items</h3>
+                    <p className="asr-items-subtitle">
+                      Unit is auto-filled from Item Master.
+                    </p>
+                  </div>
+
+                  <div className="asr-items-header-actions">
+                    <button
+                      type="button"
+                      className="asr-primary-btn"
+                      onClick={addItemRow}
+                      disabled={saving}
+                    >
+                      <FiPlusCircle />
+                      Add Another Item
+                    </button>
+                  </div>
+                </div>
+
+                {calculatedRows.map((row, index) => (
+                  <div key={index} className="asr-item-row-card">
+                    <div className="asr-row-number">{index + 1}</div>
+
+                    <div className="asr-item-grid">
+                      <div className="asr-form-group">
+                        <label className="asr-label">Item *</label>
+
+                        <select
+                          className="asr-input"
+                          value={row.loyalty_item_id}
+                          onChange={(event) =>
+                            handleItemRowChange(
+                              index,
+                              "loyalty_item_id",
+                              event.target.value
+                            )
+                          }
+                          disabled={saving || loading}
+                        >
+                          <option value="">Select item</option>
+
+                          {sortedItems.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {getItemName(item)} -{" "}
+                              {formatPoints(getItemPoints(item))} pts /{" "}
+                              {getUnitLabel(getItemUnit(item))}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="asr-form-group">
+                        <label className="asr-label">Unit</label>
+
+                        <div className="asr-readonly-unit">
+                          {row.loyalty_item_id ? row.unit_label : "Select item"}
+                        </div>
+                      </div>
+
+                      <div className="asr-form-group">
+                        <label className="asr-label">Quantity *</label>
+
+                        <input
+                          className="asr-input"
+                          type="number"
+                          value={row.quantity}
+                          onChange={(event) =>
+                            handleItemRowChange(
+                              index,
+                              "quantity",
+                              event.target.value
+                            )
+                          }
+                          placeholder="Enter quantity"
+                          min="0"
+                          step="0.01"
+                          disabled={saving}
+                        />
+                      </div>
+
+                      <div className="asr-points-box">
+                        <p>Points / Unit</p>
+                        <h3>{formatPoints(row.points_per_unit)} pts</h3>
+                      </div>
+
+                      <div className="asr-points-box total">
+                        <p>Total Points</p>
+                        <h3>{formatPoints(row.total_points)} pts</h3>
+                      </div>
+
+                      <div className="asr-remove-box">
+                        <button
+                          type="button"
+                          className="asr-remove-btn"
+                          onClick={() => removeItemRow(index)}
+                          disabled={saving || itemRows.length === 1}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="asr-form-group full">
+                <label className="asr-label">Note Optional</label>
+
+                <textarea
+                  className="asr-textarea"
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  placeholder="Enter note if needed"
+                  rows="3"
+                  disabled={saving}
+                />
+              </div>
+
+              <div className="asr-grand-summary">
+                <div>
+                  <p>Total Items</p>
+                  <h3>{itemRows.length}</h3>
+                </div>
+
+                <div>
+                  <p>Customer</p>
+                  <h3>
+                    {selectedCustomer ? getCustomerName(selectedCustomer) : "-"}
+                  </h3>
+                </div>
+
+                <div>
+                  <p>Grand Total Points</p>
+                  <h3 className="asr-grand-total">
+                    {formatPoints(grandTotalPoints)} pts
+                  </h3>
+                </div>
+              </div>
+
+              <div className="asr-form-actions">
+                <button
+                  type="button"
+                  className="asr-cancel-btn"
+                  onClick={resetForm}
+                  disabled={saving}
+                >
+                  Clear
+                </button>
+
+                <button
+                  type="submit"
+                  className="asr-save-btn"
+                  disabled={saving}
+                >
+                  <FiSave />
+                  {saving ? "Saving..." : "Submit Reward Entry"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section className="asr-table-card">
+          <div className="asr-card-head">
+            <div>
+              <h2 className="asr-card-title">Recent Reward Entries</h2>
+              <p className="asr-card-subtitle">
+                Showing last {RECENT_ENTRY_LIMIT} transactions. Click any tile
+                to view full item details.
+              </p>
+            </div>
+
+            <span className="asr-record-badge">{entries.length} entries</span>
+          </div>
+
+          {entries.length === 0 ? (
+            <div className="asr-mobile-empty">No reward entries found.</div>
+          ) : (
+            <div className="asr-entry-tiles-grid">
+              {entries.map((entry) => {
+                const itemNames = getItemPreviewNames(entry);
+                const hiddenCount = Math.max(itemNames.length - 4, 0);
+                const rewardEntryId = getEntryId(entry);
+
+                return (
+                  <button
+                    type="button"
+                    key={rewardEntryId}
+                    className="asr-entry-tile"
+                    onClick={() => setSelectedDetailEntry(entry)}
+                    title="Click to view complete details"
+                  >
+                    <div className="asr-entry-tile-top">
+                      <div>
+                        <p className="asr-entry-date">
+                          {formatDate(entry.created_at)}
+                        </p>
+                        <h3 className="asr-entry-customer">
+                          {getEntryCustomer(entry)}
+                        </h3>
+                      </div>
+
+                      <span className="asr-entry-points">
+                        {formatPoints(getEntryTotalPoints(entry))} pts
+                      </span>
+                    </div>
+
+                    <div className="asr-entry-item-chips">
+                      {itemNames.slice(0, 4).map((name, index) => (
+                        <span
+                          key={`${name}-${index}`}
+                          className="asr-item-name-chip"
+                        >
+                          {name}
+                        </span>
+                      ))}
+
+                      {hiddenCount > 0 && (
+                        <span className="asr-item-name-chip more">
+                          +{hiddenCount} more
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="asr-entry-tile-bottom">
+                      <span>
+                        {getEntryTotalItems(entry)} item
+                        {getEntryTotalItems(entry) === 1 ? "" : "s"}
+                      </span>
+
+                      <div className="asr-entry-actions">
+                        <span className="asr-view-link">
+                          <FiEye />
+                          View
+                        </span>
+
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="asr-whatsapp-link"
+                          onClick={(event) => sendWhatsAppForEntry(entry, event)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              sendWhatsAppForEntry(entry, event);
+                            }
+                          }}
+                        >
+                          <FiMessageCircle />
+                          {sendingWhatsAppId === rewardEntryId
+                            ? "Sending..."
+                            : "WhatsApp"}
+                        </span>
+
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          className="asr-add-item-link"
+                          onClick={(event) => openAddItemModal(entry, event)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              openAddItemModal(entry, event);
+                            }
+                          }}
+                        >
+                          <FiPlusCircle />
+                          Add Item
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
         {selectedDetailEntry && (
           <div
             className="asr-modal-overlay"
             onClick={() => setSelectedDetailEntry(null)}
           >
-            <div className="asr-details-modal" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="asr-details-modal"
+              onClick={(event) => event.stopPropagation()}
+            >
               <div className="asr-modal-header">
                 <div>
                   <p className="asr-modal-kicker">Reward Transaction</p>
@@ -738,14 +1253,16 @@ export default function RewardEntry({ onBack }) {
                   className="asr-modal-close"
                   onClick={() => setSelectedDetailEntry(null)}
                 >
-                  ×
+                  <FiX />
                 </button>
               </div>
 
               <div className="asr-details-summary-grid">
                 <div>
                   <span>Date / Time</span>
-                  <strong>{formatDateTime(selectedDetailEntry.created_at)}</strong>
+                  <strong>
+                    {formatDateTime(selectedDetailEntry.created_at)}
+                  </strong>
                 </div>
 
                 <div>
@@ -789,11 +1306,14 @@ export default function RewardEntry({ onBack }) {
                           <h4>{item?.item_name || "-"}</h4>
                           <p>
                             {item?.quantity ?? "-"} {getUnitLabel(item?.unit)} ×{" "}
-                            {formatPoints(item?.points_per_unit || 0)} pts / unit
+                            {formatPoints(item?.points_per_unit || 0)} pts /
+                            unit
                           </p>
                         </div>
 
-                        <strong>{formatPoints(item?.total_points || 0)} pts</strong>
+                        <strong>
+                          {formatPoints(item?.total_points || 0)} pts
+                        </strong>
                       </div>
                     ))}
                   </div>
@@ -811,6 +1331,22 @@ export default function RewardEntry({ onBack }) {
 
                 <button
                   type="button"
+                  className="asr-whatsapp-btn"
+                  disabled={
+                    sendingWhatsAppId === getEntryId(selectedDetailEntry)
+                  }
+                  onClick={(event) =>
+                    sendWhatsAppForEntry(selectedDetailEntry, event)
+                  }
+                >
+                  <FiMessageCircle />
+                  {sendingWhatsAppId === getEntryId(selectedDetailEntry)
+                    ? "Sending..."
+                    : "Send WhatsApp"}
+                </button>
+
+                <button
+                  type="button"
                   className="asr-primary-btn"
                   onClick={() => {
                     const entry = selectedDetailEntry;
@@ -818,7 +1354,8 @@ export default function RewardEntry({ onBack }) {
                     openAddItemModal(entry);
                   }}
                 >
-                  + Add Item
+                  <FiPlusCircle />
+                  Add Item
                 </button>
               </div>
             </div>
@@ -827,7 +1364,10 @@ export default function RewardEntry({ onBack }) {
 
         {quickItemModalOpen && (
           <div className="asr-modal-overlay" onClick={closeQuickItemModal}>
-            <div className="asr-add-modal" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="asr-add-modal"
+              onClick={(event) => event.stopPropagation()}
+            >
               <div className="asr-modal-header">
                 <div>
                   <p className="asr-modal-kicker">Quick Item Master</p>
@@ -840,7 +1380,7 @@ export default function RewardEntry({ onBack }) {
                   onClick={closeQuickItemModal}
                   disabled={creatingQuickItem}
                 >
-                  ×
+                  <FiX />
                 </button>
               </div>
 
@@ -853,8 +1393,8 @@ export default function RewardEntry({ onBack }) {
                       className="asr-input"
                       type="text"
                       value={quickItemForm.item_name}
-                      onChange={(e) =>
-                        handleQuickItemChange("item_name", e.target.value)
+                      onChange={(event) =>
+                        handleQuickItemChange("item_name", event.target.value)
                       }
                       placeholder="Example: Putty, Tarpin"
                       disabled={creatingQuickItem}
@@ -869,8 +1409,8 @@ export default function RewardEntry({ onBack }) {
                       className="asr-input"
                       type="text"
                       value={quickItemForm.sku}
-                      onChange={(e) =>
-                        handleQuickItemChange("sku", e.target.value)
+                      onChange={(event) =>
+                        handleQuickItemChange("sku", event.target.value)
                       }
                       placeholder="Optional SKU"
                       disabled={creatingQuickItem}
@@ -883,8 +1423,8 @@ export default function RewardEntry({ onBack }) {
                     <select
                       className="asr-input"
                       value={quickItemForm.unit}
-                      onChange={(e) =>
-                        handleQuickItemChange("unit", e.target.value)
+                      onChange={(event) =>
+                        handleQuickItemChange("unit", event.target.value)
                       }
                       disabled={creatingQuickItem}
                     >
@@ -903,8 +1443,8 @@ export default function RewardEntry({ onBack }) {
                       className="asr-input"
                       type="number"
                       value={quickItemForm.points}
-                      onChange={(e) =>
-                        handleQuickItemChange("points", e.target.value)
+                      onChange={(event) =>
+                        handleQuickItemChange("points", event.target.value)
                       }
                       placeholder="Enter points"
                       min="0"
@@ -915,8 +1455,11 @@ export default function RewardEntry({ onBack }) {
                 </div>
 
                 <div className="asr-quick-note">
-                  This item will be saved in Item Master and automatically
-                  selected in the first empty reward entry row.
+                  <FiCheckCircle />
+                  <span>
+                    This item will be saved in Item Master and automatically
+                    selected in the first empty reward entry row.
+                  </span>
                 </div>
 
                 <div className="asr-modal-actions">
@@ -931,9 +1474,10 @@ export default function RewardEntry({ onBack }) {
 
                   <button
                     type="submit"
-                    className="asr-primary-btn"
+                    className="asr-save-btn"
                     disabled={creatingQuickItem}
                   >
+                    <FiSave />
                     {creatingQuickItem ? "Saving..." : "Save Item"}
                   </button>
                 </div>
@@ -944,7 +1488,10 @@ export default function RewardEntry({ onBack }) {
 
         {addItemEntry && (
           <div className="asr-modal-overlay" onClick={closeAddItemModal}>
-            <div className="asr-add-modal" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="asr-add-modal"
+              onClick={(event) => event.stopPropagation()}
+            >
               <div className="asr-modal-header">
                 <div>
                   <p className="asr-modal-kicker">Add Item To Old Transaction</p>
@@ -957,7 +1504,7 @@ export default function RewardEntry({ onBack }) {
                   onClick={closeAddItemModal}
                   disabled={addingItem}
                 >
-                  ×
+                  <FiX />
                 </button>
               </div>
 
@@ -969,10 +1516,10 @@ export default function RewardEntry({ onBack }) {
                     <select
                       className="asr-input"
                       value={addItemForm.loyalty_item_id}
-                      onChange={(e) =>
+                      onChange={(event) =>
                         handleAddItemFormChange(
                           "loyalty_item_id",
-                          e.target.value
+                          event.target.value
                         )
                       }
                       disabled={addingItem}
@@ -981,7 +1528,8 @@ export default function RewardEntry({ onBack }) {
 
                       {sortedItems.map((item) => (
                         <option key={item.id} value={item.id}>
-                          {getItemName(item)} - {formatPoints(getItemPoints(item))} pts /{" "}
+                          {getItemName(item)} -{" "}
+                          {formatPoints(getItemPoints(item))} pts /{" "}
                           {getUnitLabel(getItemUnit(item))}
                         </option>
                       ))}
@@ -1004,8 +1552,8 @@ export default function RewardEntry({ onBack }) {
                       className="asr-input"
                       type="number"
                       value={addItemForm.quantity}
-                      onChange={(e) =>
-                        handleAddItemFormChange("quantity", e.target.value)
+                      onChange={(event) =>
+                        handleAddItemFormChange("quantity", event.target.value)
                       }
                       placeholder="Enter quantity"
                       min="0"
@@ -1015,17 +1563,15 @@ export default function RewardEntry({ onBack }) {
                   </div>
 
                   <div className="asr-points-box">
-                    <p className="asr-summary-label">Points / Unit</p>
-                    <h3 className="asr-summary-value">
+                    <p>Points / Unit</p>
+                    <h3>
                       {formatPoints(addItemCalculated.points_per_unit)} pts
                     </h3>
                   </div>
 
-                  <div className="asr-points-box">
-                    <p className="asr-summary-label">Total Points</p>
-                    <h3 className="asr-row-total-points">
-                      {formatPoints(addItemCalculated.total_points)} pts
-                    </h3>
+                  <div className="asr-points-box total">
+                    <p>Total Points</p>
+                    <h3>{formatPoints(addItemCalculated.total_points)} pts</h3>
                   </div>
                 </div>
 
@@ -1035,8 +1581,8 @@ export default function RewardEntry({ onBack }) {
                   <textarea
                     className="asr-textarea"
                     value={addItemForm.note}
-                    onChange={(e) =>
-                      handleAddItemFormChange("note", e.target.value)
+                    onChange={(event) =>
+                      handleAddItemFormChange("note", event.target.value)
                     }
                     placeholder="Enter note if needed"
                     rows="3"
@@ -1056,9 +1602,10 @@ export default function RewardEntry({ onBack }) {
 
                   <button
                     type="submit"
-                    className="asr-primary-btn"
+                    className="asr-save-btn"
                     disabled={addingItem}
                   >
+                    <FiSave />
                     {addingItem ? "Adding..." : "Add Item"}
                   </button>
                 </div>
@@ -1066,348 +1613,29 @@ export default function RewardEntry({ onBack }) {
             </div>
           </div>
         )}
-
-        <div className="asr-page-header">
-          <div className="asr-header-left">
-            {onBack && (
-              <button type="button" className="asr-back-btn" onClick={onBack}>
-                ← Back
-              </button>
-            )}
-
-            <div>
-              <h1 className="asr-title">Reward Entry</h1>
-              <p className="asr-subtitle">
-                Select customer, select item, enter quantity, and reward points
-                will auto-calculate.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="asr-form-card">
-          <div className="asr-form-header">
-            <h2 className="asr-form-title">Create Reward Entry</h2>
-          </div>
-
-          <form onSubmit={handleSubmit}>
-            <div className="asr-customer-block">
-              <div className="asr-form-group">
-                <label className="asr-label">Customer *</label>
-
-                <select
-                  className="asr-input"
-                  value={customerId}
-                  onChange={(e) => setCustomerId(e.target.value)}
-                  disabled={saving || loading}
-                >
-                  <option value="">Select customer</option>
-
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {getCustomerName(customer)} - {getCustomerPhone(customer)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="asr-info-box">
-                <p className="asr-summary-label">Selected Customer</p>
-
-                <h3 className="asr-summary-value">
-                  {selectedCustomer
-                    ? `${getCustomerName(selectedCustomer)} (${getCustomerPhone(
-                        selectedCustomer
-                      )})`
-                    : "-"}
-                </h3>
-              </div>
-            </div>
-
-            <div className="asr-date-block">
-              <div className="asr-form-group">
-                <label className="asr-label">Entry Date Optional</label>
-
-                <input
-                  className="asr-input"
-                  type="date"
-                  value={entryDate}
-                  onChange={(e) => setEntryDate(e.target.value)}
-                  disabled={saving}
-                />
-              </div>
-
-              <div className="asr-info-box">
-                <p className="asr-summary-label">Entry Date</p>
-                <h3 className="asr-summary-value">
-                  {entryDate
-                    ? new Date(`${entryDate}T12:00:00`).toLocaleDateString(
-                        "en-IN"
-                      )
-                    : "Today / Auto"}
-                </h3>
-              </div>
-            </div>
-
-            <div className="asr-items-section">
-              <div className="asr-items-header">
-                <h3 className="asr-items-title">Items</h3>
-
-                <div className="asr-items-header-actions">
-                  <button
-                    type="button"
-                    className="asr-quick-item-btn"
-                    onClick={openQuickItemModal}
-                    disabled={saving || loading}
-                  >
-                    + Add Item Master
-                  </button>
-
-                  <button
-                    type="button"
-                    className="asr-add-row-btn"
-                    onClick={addItemRow}
-                    disabled={saving}
-                  >
-                    + Add Another Item
-                  </button>
-                </div>
-              </div>
-
-              {calculatedRows.map((row, index) => (
-                <div key={index} className="asr-item-row-card">
-                  <div className="asr-row-number">{index + 1}</div>
-
-                  <div className="asr-item-grid">
-                    <div className="asr-form-group">
-                      <label className="asr-label">Item *</label>
-
-                      <select
-                        className="asr-input"
-                        value={row.loyalty_item_id}
-                        onChange={(e) =>
-                          handleItemRowChange(
-                            index,
-                            "loyalty_item_id",
-                            e.target.value
-                          )
-                        }
-                        disabled={saving || loading}
-                      >
-                        <option value="">Select item</option>
-
-                        {sortedItems.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {getItemName(item)} - {formatPoints(getItemPoints(item))} pts /{" "}
-                            {getUnitLabel(getItemUnit(item))}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="asr-form-group">
-                      <label className="asr-label">Unit</label>
-
-                      <div className="asr-readonly-unit">
-                        {row.loyalty_item_id ? row.unit_label : "Select item"}
-                      </div>
-                    </div>
-
-                    <div className="asr-form-group">
-                      <label className="asr-label">Quantity *</label>
-
-                      <input
-                        className="asr-input"
-                        type="number"
-                        value={row.quantity}
-                        onChange={(e) =>
-                          handleItemRowChange(
-                            index,
-                            "quantity",
-                            e.target.value
-                          )
-                        }
-                        placeholder="Enter quantity"
-                        min="0"
-                        step="0.01"
-                        disabled={saving}
-                      />
-                    </div>
-
-                    <div className="asr-points-box">
-                      <p className="asr-summary-label">Points / Unit</p>
-                      <h3 className="asr-summary-value">
-                        {formatPoints(row.points_per_unit)} pts
-                      </h3>
-                    </div>
-
-                    <div className="asr-points-box">
-                      <p className="asr-summary-label">Total Points</p>
-                      <h3 className="asr-row-total-points">
-                        {formatPoints(row.total_points)} pts
-                      </h3>
-                    </div>
-
-                    <div className="asr-remove-box">
-                      <button
-                        type="button"
-                        className="asr-remove-btn"
-                        onClick={() => removeItemRow(index)}
-                        disabled={saving || itemRows.length === 1}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="asr-form-group full">
-              <label className="asr-label">Note Optional</label>
-
-              <textarea
-                className="asr-textarea"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Enter note if needed"
-                rows="3"
-                disabled={saving}
-              />
-            </div>
-
-            <div className="asr-grand-summary">
-              <div>
-                <p className="asr-summary-label">Total Items</p>
-                <h3 className="asr-summary-value">{itemRows.length}</h3>
-              </div>
-
-              <div>
-                <p className="asr-summary-label">Customer</p>
-                <h3 className="asr-summary-value">
-                  {selectedCustomer ? getCustomerName(selectedCustomer) : "-"}
-                </h3>
-              </div>
-
-              <div>
-                <p className="asr-summary-label">Grand Total Points</p>
-                <h3 className="asr-grand-total">{formatPoints(grandTotalPoints)} pts</h3>
-              </div>
-            </div>
-
-            <div className="asr-form-actions">
-              <button
-                type="button"
-                className="asr-cancel-btn"
-                onClick={resetForm}
-                disabled={saving}
-              >
-                Clear
-              </button>
-
-              <button
-                type="submit"
-                className="asr-primary-btn"
-                disabled={saving}
-              >
-                {saving ? "Saving..." : "Submit Reward Entry"}
-              </button>
-            </div>
-          </form>
-        </div>
-
-        <div className="asr-table-card">
-          <div className="asr-table-header">
-            <div>
-              <h2 className="asr-table-title">Recent Reward Entries</h2>
-              <p className="asr-table-subtitle">
-                Showing last {RECENT_ENTRY_LIMIT} transactions. Click any tile to
-                view full details.
-              </p>
-            </div>
-          </div>
-
-          {entries.length === 0 ? (
-            <div className="asr-mobile-empty">No reward entries found.</div>
-          ) : (
-            <div className="asr-entry-tiles-grid">
-              {entries.map((entry) => {
-                const itemNames = getItemPreviewNames(entry);
-                const hiddenCount = Math.max(itemNames.length - 4, 0);
-
-                return (
-                  <button
-                    type="button"
-                    key={getEntryId(entry)}
-                    className="asr-entry-tile"
-                    onClick={() => setSelectedDetailEntry(entry)}
-                    title="Click to view complete details"
-                  >
-                    <div className="asr-entry-tile-top">
-                      <div>
-                        <p className="asr-entry-date">{formatDate(entry.created_at)}</p>
-                        <h3 className="asr-entry-customer">{getEntryCustomer(entry)}</h3>
-                      </div>
-
-                      <span className="asr-entry-points">
-                        {formatPoints(getEntryTotalPoints(entry))} pts
-                      </span>
-                    </div>
-
-                    <div className="asr-entry-item-chips">
-                      {itemNames.slice(0, 4).map((name, index) => (
-                        <span key={`${name}-${index}`} className="asr-item-name-chip">
-                          {name}
-                        </span>
-                      ))}
-
-                      {hiddenCount > 0 && (
-                        <span className="asr-item-name-chip more">
-                          +{hiddenCount} more
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="asr-entry-tile-bottom">
-                      <span>{getEntryTotalItems(entry)} item{getEntryTotalItems(entry) === 1 ? "" : "s"}</span>
-
-                      <div className="asr-entry-actions">
-                        <span className="asr-view-link">View</span>
-
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          className="asr-add-item-link"
-                          onClick={(e) => openAddItemModal(entry, e)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              openAddItemModal(entry, e);
-                            }
-                          }}
-                        >
-                          + Add Item
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
       </div>
     </>
   );
 }
 
+const SummaryCard = ({ icon, label, value, tone = "blue" }) => (
+  <div className="asr-summary-card">
+    <div className={`asr-summary-icon ${tone}`}>{icon}</div>
+
+    <div>
+      <p className="asr-summary-label">{label}</p>
+      <h3 className="asr-summary-value">{value}</h3>
+    </div>
+  </div>
+);
+
 const rewardEntryCss = `
   .asr-reward-page {
     width: 100%;
-    max-width: 100%;
     min-height: 100vh;
     padding: 24px;
     background: #f8fafc;
-    color: #111827;
+    color: #0f172a;
     overflow-x: hidden;
     box-sizing: border-box;
   }
@@ -1421,9 +1649,9 @@ const rewardEntryCss = `
     padding: 14px 22px;
     border-radius: 12px;
     font-size: 14px;
-    font-weight: 800;
+    font-weight: 900;
     box-shadow: 0 14px 35px rgba(15, 23, 42, 0.22);
-    max-width: min(420px, calc(100vw - 28px));
+    max-width: min(460px, calc(100vw - 28px));
     min-width: min(280px, calc(100vw - 28px));
     text-align: center;
     white-space: pre-line;
@@ -1441,173 +1669,338 @@ const rewardEntryCss = `
     border: 1px solid #fecaca;
   }
 
-  .asr-page-header {
+  .asr-header-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 22px;
+    margin-bottom: 18px;
     display: flex;
     justify-content: space-between;
-    align-items: center;
     gap: 16px;
-    margin-bottom: 18px;
-    flex-wrap: wrap;
+    align-items: center;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
   }
 
   .asr-header-left {
     display: flex;
     align-items: center;
     gap: 14px;
-    flex-wrap: wrap;
     min-width: 0;
+  }
+
+  .asr-back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #2563eb;
+    height: 42px;
+    padding: 0 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 900;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+
+  .asr-back-btn:hover {
+    background: #dbeafe;
+  }
+
+  .asr-title-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: #eff6ff;
+    color: #2563eb;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    flex: 0 0 auto;
   }
 
   .asr-title {
     margin: 0;
-    font-size: 28px;
-    font-weight: 900;
-    color: #111827;
+    font-size: 26px;
+    font-weight: 950;
     letter-spacing: -0.03em;
+    color: #0f172a;
   }
 
-  .asr-subtitle,
-  .asr-table-subtitle {
+  .asr-subtitle {
     margin: 6px 0 0;
     color: #64748b;
     font-size: 14px;
-    line-height: 1.5;
+    font-weight: 650;
+    line-height: 1.45;
   }
 
-  .asr-back-btn {
-    border: 1px solid #cbd5e1;
-    background: #ffffff;
-    color: #334155;
-    padding: 10px 16px;
-    border-radius: 10px;
-    font-weight: 800;
+  .asr-header-item-master-btn {
+    border: 1px solid #bbf7d0;
+    background: #ecfdf5;
+    color: #059669;
+    height: 46px;
+    padding: 0 18px;
+    border-radius: 13px;
+    font-weight: 950;
     cursor: pointer;
-    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+    box-shadow: 0 12px 24px rgba(5, 150, 105, 0.12);
+  }
+
+  .asr-header-item-master-btn:disabled,
+  .asr-primary-btn:disabled,
+  .asr-save-btn:disabled,
+  .asr-cancel-btn:disabled,
+  .asr-whatsapp-btn:disabled,
+  .asr-secondary-green-btn:disabled,
+  .asr-remove-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+
+  .asr-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+
+  .asr-summary-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    min-width: 0;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+  }
+
+  .asr-summary-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 15px;
+    display: grid;
+    place-items: center;
+    font-size: 21px;
+    flex: 0 0 auto;
+  }
+
+  .asr-summary-icon.blue {
+    background: #eff6ff;
+    color: #2563eb;
+  }
+
+  .asr-summary-icon.green {
+    background: #ecfdf5;
+    color: #059669;
+  }
+
+  .asr-summary-icon.purple {
+    background: #f5f3ff;
+    color: #7c3aed;
+  }
+
+  .asr-summary-icon.orange {
+    background: #fff7ed;
+    color: #ea580c;
+  }
+
+  .asr-summary-label {
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  .asr-summary-value {
+    margin: 6px 0 0;
+    color: #0f172a;
+    font-size: 26px;
+    font-weight: 950;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    word-break: break-word;
   }
 
   .asr-form-card,
   .asr-table-card {
     background: #ffffff;
-    border-radius: 16px;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
     max-width: 100%;
-  }
-
-  .asr-form-card {
-    padding: 22px;
-    margin-bottom: 24px;
-  }
-
-  .asr-form-header {
     margin-bottom: 18px;
   }
 
-  .asr-form-title {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 900;
-    color: #111827;
+  .asr-card-head {
+    padding: 18px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: center;
+    background: #ffffff;
   }
 
-  .asr-customer-block,
-  .asr-date-block {
+  .asr-card-title {
+    margin: 0;
+    color: #0f172a;
+    font-size: 19px;
+    font-weight: 950;
+  }
+
+  .asr-card-subtitle {
+    margin: 6px 0 0;
+    color: #64748b;
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.45;
+  }
+
+  .asr-record-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #2563eb;
+    padding: 8px 13px;
+    font-size: 13px;
+    font-weight: 950;
+    white-space: nowrap;
+  }
+
+  .asr-card-body {
+    padding: 20px;
+    background: #f8fafc;
+  }
+
+  .asr-top-form-grid {
     display: grid;
-    grid-template-columns: 1.5fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
-    margin-bottom: 22px;
+    margin-bottom: 18px;
+  }
+
+  .asr-inner-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 16px;
+    min-width: 0;
   }
 
   .asr-form-group {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 7px;
     min-width: 0;
   }
 
   .asr-form-group.full {
-    margin-top: 18px;
+    margin-top: 16px;
   }
 
   .asr-label {
-    font-size: 14px;
-    font-weight: 800;
     color: #334155;
+    font-size: 13px;
+    font-weight: 950;
   }
 
   .asr-input,
   .asr-textarea {
     width: 100%;
-    max-width: 100%;
     border: 1px solid #cbd5e1;
-    border-radius: 9px;
-    padding: 12px 13px;
+    background: #ffffff;
+    border-radius: 12px;
     font-size: 14px;
     outline: none;
-    background-color: #ffffff;
-    color: #111827;
     box-sizing: border-box;
+    color: #0f172a;
+    font-weight: 750;
+  }
+
+  .asr-input {
+    height: 44px;
+    padding: 0 12px;
   }
 
   .asr-textarea {
     resize: vertical;
     font-family: inherit;
+    min-height: 84px;
+    padding: 12px;
+    line-height: 1.5;
   }
 
-  .asr-readonly-unit {
-    width: 100%;
-    min-height: 43px;
-    border: 1px solid #cbd5e1;
-    border-radius: 9px;
-    padding: 12px 13px;
-    font-size: 14px;
+  .asr-input:focus,
+  .asr-textarea:focus {
+    border-color: #2563eb;
+  }
+
+  .asr-selected-box {
+    margin-top: 12px;
     background: #f8fafc;
-    color: #111827;
-    box-sizing: border-box;
-    font-weight: 900;
-    display: flex;
-    align-items: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 13px;
   }
 
-  .asr-info-box,
-  .asr-points-box,
-  .asr-grand-summary {
-    background: #f8fafc;
-    border: 1px solid #e5e7eb;
-  }
-
-  .asr-info-box {
-    border-radius: 12px;
-    padding: 14px;
-    min-width: 0;
-  }
-
-  .asr-summary-label {
+  .asr-selected-box p,
+  .asr-points-box p,
+  .asr-grand-summary p {
     margin: 0;
-    font-size: 13px;
     color: #64748b;
-    font-weight: 800;
+    font-size: 12px;
+    font-weight: 950;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
 
-  .asr-summary-value {
-    margin: 6px 0 0;
+  .asr-selected-box h3 {
+    margin: 7px 0 0;
+    color: #0f172a;
     font-size: 15px;
-    color: #111827;
-    font-weight: 900;
+    font-weight: 950;
     overflow-wrap: anywhere;
   }
 
   .asr-items-section {
-    margin-top: 8px;
+    margin-top: 6px;
   }
 
   .asr-items-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
     gap: 12px;
     flex-wrap: wrap;
+  }
+
+  .asr-items-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 950;
+    color: #0f172a;
+  }
+
+  .asr-items-subtitle {
+    margin: 5px 0 0;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 750;
   }
 
   .asr-items-header-actions {
@@ -1618,80 +2011,121 @@ const rewardEntryCss = `
     flex-wrap: wrap;
   }
 
-  .asr-items-title {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 900;
-    color: #111827;
-  }
-
-  .asr-add-row-btn,
-  .asr-quick-item-btn {
-    border: none;
-    padding: 9px 14px;
-    border-radius: 9px;
-    font-weight: 800;
+  .asr-primary-btn,
+  .asr-save-btn,
+  .asr-cancel-btn,
+  .asr-whatsapp-btn,
+  .asr-secondary-green-btn {
+    height: 44px;
+    padding: 0 17px;
+    border-radius: 13px;
+    font-weight: 950;
     cursor: pointer;
-    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
   }
 
-  .asr-add-row-btn {
+  .asr-primary-btn,
+  .asr-save-btn {
+    border: none;
     background: #2563eb;
     color: #ffffff;
+    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
   }
 
-  .asr-quick-item-btn {
+  .asr-secondary-green-btn {
+    border: 1px solid #bbf7d0;
     background: #ecfdf5;
-    color: #047857;
-    border: 1px solid #a7f3d0;
+    color: #059669;
+  }
+
+  .asr-whatsapp-btn {
+    border: none;
+    background: #16a34a;
+    color: #ffffff;
+    box-shadow: 0 10px 22px rgba(22, 163, 74, 0.18);
+  }
+
+  .asr-cancel-btn {
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #0f172a;
   }
 
   .asr-item-row-card {
     position: relative;
-    border: 1px solid #e5e7eb;
+    border: 1px solid #e2e8f0;
     background: #ffffff;
-    border-radius: 14px;
+    border-radius: 18px;
     padding: 18px;
     margin-bottom: 14px;
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
   }
 
   .asr-row-number {
     position: absolute;
-    top: -10px;
+    top: -11px;
     left: 16px;
     background: #2563eb;
     color: #ffffff;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
     font-size: 13px;
-    font-weight: 900;
+    font-weight: 950;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
   }
 
   .asr-item-grid {
     display: grid;
-    grid-template-columns: minmax(180px, 2fr) minmax(110px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(130px, 1fr) auto;
+    grid-template-columns: minmax(200px, 2fr) minmax(120px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(140px, 1fr) auto;
     gap: 14px;
     align-items: end;
   }
 
+  .asr-readonly-unit {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 0 12px;
+    font-size: 14px;
+    background: #f8fafc;
+    color: #0f172a;
+    box-sizing: border-box;
+    font-weight: 950;
+    display: flex;
+    align-items: center;
+  }
+
   .asr-points-box {
-    border-radius: 10px;
-    padding: 10px;
-    min-height: 46px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 12px;
     min-width: 0;
   }
 
-  .asr-row-total-points {
-    margin: 6px 0 0;
+  .asr-points-box.total {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+  }
+
+  .asr-points-box h3 {
+    margin: 7px 0 0;
     font-size: 16px;
-    color: #2563eb;
-    font-weight: 900;
+    color: #0f172a;
+    font-weight: 950;
     overflow-wrap: anywhere;
+  }
+
+  .asr-points-box.total h3 {
+    color: #2563eb;
   }
 
   .asr-remove-box {
@@ -1703,87 +2137,44 @@ const rewardEntryCss = `
   .asr-remove-btn {
     border: none;
     background: #fee2e2;
-    color: #b91c1c;
-    padding: 10px 12px;
-    border-radius: 9px;
-    font-weight: 900;
+    color: #dc2626;
+    height: 42px;
+    padding: 0 13px;
+    border-radius: 12px;
+    font-weight: 950;
     cursor: pointer;
-    min-height: 42px;
-  }
-
-  .asr-remove-btn:disabled,
-  .asr-primary-btn:disabled,
-  .asr-cancel-btn:disabled,
-  .asr-add-row-btn:disabled,
-  .asr-quick-item-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
   }
 
   .asr-grand-summary {
-    margin-top: 20px;
-    border-radius: 14px;
-    padding: 18px;
+    margin-top: 18px;
+    border-radius: 18px;
+    padding: 16px;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
+    gap: 14px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
   }
 
-  .asr-grand-total {
-    margin: 6px 0 0;
-    font-size: 24px;
-    color: #2563eb;
-    font-weight: 900;
+  .asr-grand-summary h3 {
+    margin: 7px 0 0;
+    font-size: 18px;
+    color: #0f172a;
+    font-weight: 950;
     overflow-wrap: anywhere;
+  }
+
+  .asr-grand-summary .asr-grand-total {
+    color: #2563eb;
+    font-size: 24px;
   }
 
   .asr-form-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 12px;
-    margin-top: 20px;
-  }
-
-  .asr-primary-btn,
-  .asr-cancel-btn {
-    padding: 10px 18px;
-    border-radius: 9px;
-    font-weight: 800;
-    cursor: pointer;
-    min-height: 42px;
-  }
-
-  .asr-primary-btn {
-    border: none;
-    background: #2563eb;
-    color: #ffffff;
-    box-shadow: 0 6px 14px rgba(37, 99, 235, 0.22);
-  }
-
-  .asr-cancel-btn {
-    border: 1px solid #cbd5e1;
-    background: #ffffff;
-    color: #334155;
-  }
-
-  .asr-table-card {
-    overflow: hidden;
-  }
-
-  .asr-table-header {
-    padding: 18px 20px;
-    border-bottom: 1px solid #e5e7eb;
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 14px;
-  }
-
-  .asr-table-title {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 900;
-    color: #111827;
+    gap: 10px;
+    margin-top: 18px;
+    flex-wrap: wrap;
   }
 
   .asr-entry-tiles-grid {
@@ -1795,21 +2186,22 @@ const rewardEntryCss = `
   }
 
   .asr-entry-tile {
-    border: 1px solid #e5e7eb;
+    border: 1px solid #e2e8f0;
     background: #ffffff;
-    border-radius: 16px;
+    border-radius: 18px;
     padding: 16px;
     text-align: left;
     cursor: pointer;
     min-width: 0;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
-    transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+    transition: 0.18s ease;
+    color: #0f172a;
   }
 
   .asr-entry-tile:hover {
     transform: translateY(-2px);
     border-color: #bfdbfe;
-    box-shadow: 0 12px 26px rgba(37, 99, 235, 0.11);
+    box-shadow: 0 14px 30px rgba(37, 99, 235, 0.08);
   }
 
   .asr-entry-tile-top {
@@ -1821,7 +2213,7 @@ const rewardEntryCss = `
   }
 
   .asr-entry-date {
-    margin: 0 0 5px;
+    margin: 0 0 6px;
     color: #64748b;
     font-size: 12px;
     font-weight: 900;
@@ -1830,8 +2222,8 @@ const rewardEntryCss = `
   .asr-entry-customer {
     margin: 0;
     font-size: 17px;
-    color: #111827;
-    font-weight: 900;
+    color: #0f172a;
+    font-weight: 950;
     max-width: 160px;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1844,7 +2236,7 @@ const rewardEntryCss = `
     border-radius: 999px;
     padding: 7px 10px;
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 950;
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -1891,19 +2283,25 @@ const rewardEntryCss = `
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .asr-view-link,
-  .asr-add-item-link {
+  .asr-add-item-link,
+  .asr-whatsapp-link {
     border-radius: 999px;
     padding: 7px 10px;
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 950;
     white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
   }
 
   .asr-view-link {
-    color: #4338ca;
+    color: #4f46e5;
     background: #eef2ff;
   }
 
@@ -1912,15 +2310,17 @@ const rewardEntryCss = `
     background: #eff6ff;
   }
 
-  .asr-add-item-link:hover {
-    background: #dbeafe;
+  .asr-whatsapp-link {
+    color: #15803d;
+    background: #dcfce7;
   }
 
   .asr-mobile-empty {
-    padding: 24px;
+    padding: 32px 16px;
     text-align: center;
     color: #64748b;
-    font-weight: 800;
+    font-weight: 850;
+    background: #f8fafc;
   }
 
   .asr-modal-overlay {
@@ -1931,19 +2331,19 @@ const rewardEntryCss = `
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 18px;
+    padding: 20px;
+    box-sizing: border-box;
   }
 
   .asr-details-modal,
   .asr-add-modal {
     width: min(760px, 100%);
-    max-height: min(88vh, 820px);
+    max-height: 90vh;
     overflow-y: auto;
     background: #ffffff;
-    border-radius: 18px;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 28px 80px rgba(15, 23, 42, 0.32);
-    padding: 20px;
+    border-radius: 20px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 24px 55px rgba(15, 23, 42, 0.28);
   }
 
   .asr-add-modal {
@@ -1951,53 +2351,63 @@ const rewardEntryCss = `
   }
 
   .asr-modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #e2e8f0;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 14px;
-    margin-bottom: 16px;
   }
 
   .asr-modal-kicker {
-    margin: 0 0 4px;
+    margin: 0 0 5px;
     color: #2563eb;
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 950;
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
 
   .asr-modal-header h2 {
     margin: 0;
-    color: #111827;
+    color: #0f172a;
     font-size: 22px;
-    font-weight: 900;
+    font-weight: 950;
   }
 
   .asr-modal-close {
-    width: 36px;
-    height: 36px;
-    border: none;
-    border-radius: 50%;
-    background: #f1f5f9;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
     color: #0f172a;
     cursor: pointer;
-    font-size: 24px;
-    line-height: 1;
-    font-weight: 800;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+  }
+
+  .asr-details-summary-grid,
+  .asr-detail-note,
+  .asr-detail-items-section,
+  .asr-add-modal form {
+    margin-left: 20px;
+    margin-right: 20px;
   }
 
   .asr-details-summary-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
+    margin-top: 20px;
     margin-bottom: 14px;
   }
 
   .asr-details-summary-grid div,
   .asr-detail-note {
     background: #f8fafc;
-    border: 1px solid #e5e7eb;
+    border: 1px solid #e2e8f0;
     border-radius: 14px;
     padding: 12px;
     min-width: 0;
@@ -2008,16 +2418,18 @@ const rewardEntryCss = `
     display: block;
     color: #64748b;
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 950;
     margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
 
   .asr-details-summary-grid strong,
   .asr-detail-note strong {
     display: block;
-    color: #111827;
+    color: #0f172a;
     font-size: 14px;
-    font-weight: 900;
+    font-weight: 950;
     overflow-wrap: anywhere;
   }
 
@@ -2028,8 +2440,8 @@ const rewardEntryCss = `
   .asr-detail-items-section h3 {
     margin: 0 0 12px;
     font-size: 17px;
-    font-weight: 900;
-    color: #111827;
+    font-weight: 950;
+    color: #0f172a;
   }
 
   .asr-detail-items-list {
@@ -2042,21 +2454,21 @@ const rewardEntryCss = `
     align-items: center;
     justify-content: space-between;
     gap: 14px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid #e2e8f0;
     background: #ffffff;
-    border-radius: 14px;
-    padding: 13px;
+    border-radius: 16px;
+    padding: 14px;
   }
 
   .asr-detail-item-card h4 {
     margin: 0;
     font-size: 15px;
-    font-weight: 900;
-    color: #111827;
+    font-weight: 950;
+    color: #0f172a;
   }
 
   .asr-detail-item-card p {
-    margin: 5px 0 0;
+    margin: 6px 0 0;
     color: #64748b;
     font-size: 13px;
     font-weight: 800;
@@ -2065,7 +2477,7 @@ const rewardEntryCss = `
   .asr-detail-item-card strong {
     color: #2563eb;
     font-size: 15px;
-    font-weight: 900;
+    font-weight: 950;
     white-space: nowrap;
   }
 
@@ -2083,18 +2495,7 @@ const rewardEntryCss = `
     grid-template-columns: minmax(180px, 1.5fr) minmax(140px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr);
     gap: 14px;
     align-items: end;
-  }
-
-  .asr-quick-note {
-    margin-top: 14px;
-    padding: 12px;
-    border-radius: 12px;
-    background: #f8fafc;
-    border: 1px solid #e5e7eb;
-    color: #64748b;
-    font-size: 13px;
-    font-weight: 800;
-    line-height: 1.45;
+    margin-top: 20px;
   }
 
   .asr-add-modal-grid {
@@ -2102,13 +2503,37 @@ const rewardEntryCss = `
     grid-template-columns: minmax(180px, 1.5fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr);
     gap: 14px;
     align-items: end;
+    margin-top: 20px;
+  }
+
+  .asr-quick-note {
+    margin-top: 14px;
+    padding: 13px;
+    border-radius: 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.45;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .asr-quick-note svg {
+    color: #059669;
+    flex: 0 0 auto;
+    margin-top: 1px;
   }
 
   .asr-modal-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 12px;
+    gap: 10px;
     margin-top: 18px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
   }
 
   @media (max-width: 1500px) {
@@ -2137,25 +2562,26 @@ const rewardEntryCss = `
     }
   }
 
-  @media (max-width: 1024px) {
-    .asr-reward-page {
-      padding: 18px;
-    }
-
-    .asr-customer-block,
-    .asr-date-block {
-      grid-template-columns: 1fr;
-    }
-
-    .asr-grand-summary {
+  @media (max-width: 1200px) {
+    .asr-summary-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .asr-top-form-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 1024px) {
     .asr-entry-tiles-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .asr-details-summary-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .asr-grand-summary {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
@@ -2169,27 +2595,47 @@ const rewardEntryCss = `
       top: 70px;
     }
 
-    .asr-header-left {
-      width: 100%;
-      align-items: flex-start;
+    .asr-header-card {
       flex-direction: column;
+      align-items: stretch;
+      padding: 16px;
     }
 
-    .asr-back-btn {
-      width: 100%;
+    .asr-header-left {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .asr-title-icon {
+      width: 44px;
+      height: 44px;
+      font-size: 20px;
     }
 
     .asr-title {
-      font-size: 24px;
+      font-size: 23px;
     }
 
-    .asr-subtitle {
-      font-size: 14px;
+    .asr-header-item-master-btn {
+      width: 100%;
     }
 
-    .asr-form-card {
-      padding: 16px;
-      border-radius: 14px;
+    .asr-summary-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .asr-summary-value {
+      font-size: 23px;
+    }
+
+    .asr-card-head {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .asr-card-body {
+      padding: 12px;
     }
 
     .asr-items-header {
@@ -2202,8 +2648,11 @@ const rewardEntryCss = `
       flex-direction: column;
     }
 
-    .asr-add-row-btn,
-    .asr-quick-item-btn {
+    .asr-primary-btn,
+    .asr-secondary-green-btn,
+    .asr-save-btn,
+    .asr-cancel-btn,
+    .asr-whatsapp-btn {
       width: 100%;
     }
 
@@ -2234,18 +2683,21 @@ const rewardEntryCss = `
       flex-direction: column;
     }
 
-    .asr-primary-btn,
-    .asr-cancel-btn {
-      width: 100%;
-    }
-
-    .asr-table-header {
-      flex-direction: column;
-    }
-
     .asr-entry-tiles-grid {
       grid-template-columns: 1fr;
       padding: 12px;
+    }
+
+    .asr-modal-overlay {
+      align-items: flex-end;
+      padding: 0;
+    }
+
+    .asr-details-modal,
+    .asr-add-modal {
+      width: 100%;
+      max-height: 92vh;
+      border-radius: 20px 20px 0 0;
     }
 
     .asr-details-summary-grid,
@@ -2269,8 +2721,12 @@ const rewardEntryCss = `
       padding: 10px;
     }
 
-    .asr-form-card {
-      padding: 14px;
+    .asr-header-left {
+      flex-direction: column;
+    }
+
+    .asr-back-btn {
+      width: 100%;
     }
 
     .asr-title {
@@ -2285,13 +2741,15 @@ const rewardEntryCss = `
 
     .asr-entry-actions {
       width: 100%;
-      justify-content: space-between;
+      justify-content: stretch;
+      flex-direction: column;
     }
 
     .asr-view-link,
-    .asr-add-item-link {
+    .asr-add-item-link,
+    .asr-whatsapp-link {
       width: 100%;
-      text-align: center;
+      justify-content: center;
     }
   }
 `;

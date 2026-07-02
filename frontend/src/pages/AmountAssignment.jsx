@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   FiArrowLeft,
-  FiRefreshCw,
   FiSave,
   FiLock,
   FiInfo,
   FiCheckCircle,
+  FiDollarSign,
+  FiTrendingUp,
+  FiCreditCard,
+  FiAward,
 } from "react-icons/fi";
 import api from "../api/axios";
 
@@ -89,8 +92,8 @@ function AmountAssignment({ onBack }) {
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+  const handleChange = (event) => {
+    const { name, value } = event.target;
 
     setForm((prev) => ({
       ...prev,
@@ -98,8 +101,8 @@ function AmountAssignment({ onBack }) {
     }));
   };
 
-  const submitPointValue = async (e) => {
-    e.preventDefault();
+  const submitPointValue = async (event) => {
+    event.preventDefault();
 
     const pointValue = Number(form.point_value_rupees);
 
@@ -137,6 +140,40 @@ function AmountAssignment({ onBack }) {
     }
   };
 
+  const summaryCards = useMemo(
+    () => [
+      {
+        label: "Current Value",
+        value: `₹${formatAmount(currentValue)}`,
+        subValue: "For 1 point",
+        icon: <FiDollarSign />,
+        tone: "green",
+      },
+      {
+        label: "100 Points",
+        value: `₹${formatAmount(100 * currentValue)}`,
+        subValue: "Example payout",
+        icon: <FiAward />,
+        tone: "blue",
+      },
+      {
+        label: "250 Points",
+        value: `₹${formatAmount(250 * currentValue)}`,
+        subValue: "Example payout",
+        icon: <FiTrendingUp />,
+        tone: "purple",
+      },
+      {
+        label: "500 Points",
+        value: `₹${formatAmount(500 * currentValue)}`,
+        subValue: "Example payout",
+        icon: <FiCreditCard />,
+        tone: "orange",
+      },
+    ],
+    [currentValue]
+  );
+
   return (
     <>
       <style>{amountAssignmentCss}</style>
@@ -152,163 +189,205 @@ function AmountAssignment({ onBack }) {
           </div>
         )}
 
-        <div className="asa-header">
-          <button type="button" onClick={handleBack} className="asa-back-btn">
-            <FiArrowLeft size={16} />
-            Back
-          </button>
+        <section className="asa-header-card">
+          <div className="asa-header-left">
+            <button type="button" onClick={handleBack} className="asa-back-btn">
+              <FiArrowLeft />
+              Back
+            </button>
 
-          <div className="asa-title-wrap">
-            <h2 className="asa-title">
-              <span className="asa-title-icon">₹</span>
-              Amount Assignment
-            </h2>
+            <div className="asa-title-icon">
+              <span>₹</span>
+            </div>
 
-            <p className="asa-subtitle">
-              Set the payout value of each reward point.
-            </p>
+            <div className="asa-title-wrap">
+              <h1 className="asa-title">Amount Assignment</h1>
+              <p className="asa-subtitle">
+                Set the payout value of each reward point for redemption
+                calculation.
+              </p>
+            </div>
           </div>
+        </section>
 
-          <button
-            type="button"
-            onClick={fetchPointValue}
-            className="asa-refresh-btn"
-            disabled={loading}
-          >
-            <FiRefreshCw size={16} />
-            {loading ? "Loading..." : "Refresh"}
-          </button>
-        </div>
+        <section className="asa-summary-grid">
+          {summaryCards.map((card) => (
+            <SummaryCard
+              key={card.label}
+              icon={card.icon}
+              label={card.label}
+              value={card.value}
+              subValue={card.subValue}
+              tone={card.tone}
+            />
+          ))}
+        </section>
 
-        <div className="asa-top-info-card">
-          <div className="asa-top-info-left">
-            <div className="asa-top-icon">
-              <FiInfo size={20} />
+        <section className="asa-info-card">
+          <div className="asa-info-left">
+            <div className="asa-info-icon">
+              <FiInfo />
             </div>
 
             <div>
-              <h3>Payout conversion setting</h3>
-              <p>Set how much money one reward point is worth during payout.</p>
+              <h2>Payout Conversion Setting</h2>
+              <p>
+                This value decides how much rupee amount one reward point is
+                worth during payout.
+              </p>
             </div>
           </div>
 
-          <div className="asa-current-pill">
+          <span className="asa-current-pill">
             1 Point = ₹{formatAmount(currentValue)}
-          </div>
-        </div>
+          </span>
+        </section>
 
-        <div className="asa-grid">
-          <section className="asa-preview-card">
-            <div className="asa-card-header">
-              <div className="asa-green-icon-box">
-                <span>₹</span>
-              </div>
-
+        <section className="asa-main-grid">
+          <div className="asa-card">
+            <div className="asa-card-head">
               <div>
-                <p>Current Assigned Amount</p>
-                <h1>1 Point = ₹{formatAmount(currentValue)}</h1>
-              </div>
-            </div>
-
-            <div className="asa-example-box">
-              <h3>Example Calculation</h3>
-
-              <div className="asa-example-row">
-                <span>100 points</span>
-                <strong>₹{formatAmount(100 * currentValue)}</strong>
+                <h2 className="asa-card-title">Current Assigned Amount</h2>
+                <p className="asa-card-subtitle">
+                  Preview payout conversion before changing the amount.
+                </p>
               </div>
 
-              <div className="asa-example-row">
-                <span>250 points</span>
-                <strong>₹{formatAmount(250 * currentValue)}</strong>
-              </div>
-
-              <div className="asa-example-row last">
-                <span>500 points</span>
-                <strong>₹{formatAmount(500 * currentValue)}</strong>
-              </div>
-            </div>
-
-            <div className="asa-note-box">
-              <FiCheckCircle size={17} color="#16a34a" />
-              <span>
-                This amount will be used in Payout / Redemption calculation.
+              <span className="asa-record-badge">
+                ₹{formatAmount(currentValue)}
               </span>
             </div>
-          </section>
 
-          <section className="asa-form-card">
-            <h3>Update Amount Per Point</h3>
-
-            <p>
-              Enter new rupee value and confirm with your login password.
-            </p>
-
-            <form onSubmit={submitPointValue}>
-              <div className="asa-form-group">
-                <label>Amount in Rupees for 1 Point</label>
-
-                <div className="asa-amount-input-wrap">
+            <div className="asa-card-body">
+              <div className="asa-current-box">
+                <div className="asa-rupee-icon">
                   <span>₹</span>
-
-                  <input
-                    type="number"
-                    name="point_value_rupees"
-                    value={form.point_value_rupees}
-                    onChange={handleChange}
-                    min="0.01"
-                    step="0.01"
-                    placeholder="Example: 0.25"
-                    required
-                  />
                 </div>
 
-                <small>
-                  Example: enter <b>0.25</b> for 25 paise per point.
-                </small>
+                <div>
+                  <p>Current Assigned Amount</p>
+                  <h3>1 Point = ₹{formatAmount(currentValue)}</h3>
+                </div>
               </div>
 
-              <div className="asa-form-group">
-                <label>Password Confirmation</label>
+              <div className="asa-example-box">
+                <h3>Example Calculation</h3>
 
-                <div className="asa-password-wrap">
-                  <FiLock size={16} />
-
-                  <input
-                    type="password"
-                    name="password"
-                    value={form.password}
-                    onChange={handleChange}
-                    placeholder="Enter your login password"
-                    required
-                  />
+                <div className="asa-example-row">
+                  <span>100 points</span>
+                  <strong>₹{formatAmount(100 * currentValue)}</strong>
                 </div>
 
-                <small>
-                  Password is required to protect payout value changes.
-                </small>
+                <div className="asa-example-row">
+                  <span>250 points</span>
+                  <strong>₹{formatAmount(250 * currentValue)}</strong>
+                </div>
+
+                <div className="asa-example-row last">
+                  <span>500 points</span>
+                  <strong>₹{formatAmount(500 * currentValue)}</strong>
+                </div>
               </div>
 
-              <button type="submit" className="asa-save-btn" disabled={saving}>
-                <FiSave size={16} />
-                {saving ? "Updating..." : "Update Amount"}
-              </button>
-            </form>
-          </section>
-        </div>
+              <div className="asa-note-box">
+                <FiCheckCircle />
+                <span>
+                  This amount will be used in Payout / Redemption calculation.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="asa-card">
+            <div className="asa-card-head">
+              <div>
+                <h2 className="asa-card-title">Update Amount Per Point</h2>
+                <p className="asa-card-subtitle">
+                  Enter new rupee value and confirm with your login password.
+                </p>
+              </div>
+            </div>
+
+            <div className="asa-card-body">
+              <form onSubmit={submitPointValue} className="asa-form">
+                <div className="asa-form-group">
+                  <label>Amount in Rupees for 1 Point</label>
+
+                  <div className="asa-amount-input-wrap">
+                    <span>₹</span>
+
+                    <input
+                      type="number"
+                      name="point_value_rupees"
+                      value={form.point_value_rupees}
+                      onChange={handleChange}
+                      min="0.01"
+                      step="0.01"
+                      placeholder="Example: 0.25"
+                      required
+                    />
+                  </div>
+
+                  <small>
+                    Example: enter <b>0.25</b> for 25 paise per point.
+                  </small>
+                </div>
+
+                <div className="asa-form-group">
+                  <label>Password Confirmation</label>
+
+                  <div className="asa-password-wrap">
+                    <FiLock />
+
+                    <input
+                      type="password"
+                      name="password"
+                      value={form.password}
+                      onChange={handleChange}
+                      placeholder="Enter your login password"
+                      required
+                    />
+                  </div>
+
+                  <small>
+                    Password is required to protect payout value changes.
+                  </small>
+                </div>
+
+                <button type="submit" className="asa-save-btn" disabled={saving}>
+                  <FiSave />
+                  {saving ? "Updating..." : "Update Amount"}
+                </button>
+              </form>
+            </div>
+          </div>
+        </section>
       </div>
     </>
+  );
+}
+
+function SummaryCard({ icon, label, value, subValue, tone = "blue" }) {
+  return (
+    <div className="asa-summary-card">
+      <div className={`asa-summary-icon ${tone}`}>{icon}</div>
+
+      <div>
+        <p className="asa-summary-label">{label}</p>
+        <h3 className="asa-summary-value">{value}</h3>
+        <span className="asa-summary-subvalue">{subValue}</span>
+      </div>
+    </div>
   );
 }
 
 const amountAssignmentCss = `
   .asa-page {
     width: 100%;
-    max-width: 100%;
     min-height: 100vh;
-    padding: 20px 24px 40px;
-    background-color: #ffffff;
-    color: #111827;
+    padding: 24px;
+    background: #f8fafc;
+    color: #0f172a;
     box-sizing: border-box;
     overflow-x: hidden;
   }
@@ -318,224 +397,352 @@ const amountAssignmentCss = `
     top: 24px;
     left: 50%;
     transform: translateX(-50%);
-    color: #ffffff;
-    padding: 12px 22px;
-    border-radius: 10px;
-    font-weight: 900;
-    font-size: 14px;
     z-index: 10000;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    max-width: min(420px, calc(100vw - 28px));
+    padding: 14px 22px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 900;
+    box-shadow: 0 14px 35px rgba(15, 23, 42, 0.22);
+    max-width: min(460px, calc(100vw - 28px));
+    min-width: min(280px, calc(100vw - 28px));
     text-align: center;
   }
 
   .asa-toast.success {
-    background-color: #16a34a;
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
   }
 
   .asa-toast.error {
-    background-color: #dc2626;
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
   }
 
-  .asa-header {
+  .asa-header-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 22px;
+    margin-bottom: 18px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: center;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
+  }
+
+  .asa-header-left {
     display: flex;
     align-items: center;
     gap: 14px;
-    margin-bottom: 22px;
-    flex-wrap: wrap;
+    min-width: 0;
   }
 
-  .asa-back-btn,
-  .asa-refresh-btn {
+  .asa-back-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 9px 15px;
-    background-color: #ffffff;
-    color: #374151;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 800;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #2563eb;
+    height: 42px;
+    padding: 0 16px;
+    border-radius: 10px;
     font-size: 14px;
-    min-height: 40px;
+    font-weight: 900;
+    cursor: pointer;
+    flex: 0 0 auto;
   }
 
-  .asa-refresh-btn {
-    background-color: #f9fafb;
+  .asa-back-btn:hover {
+    background: #dbeafe;
   }
 
-  .asa-refresh-btn:disabled,
-  .asa-save-btn:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
+  .asa-title-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: #ecfdf5;
+    color: #059669;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+  }
+
+  .asa-title-icon span {
+    font-size: 28px;
+    font-weight: 950;
+    line-height: 1;
   }
 
   .asa-title-wrap {
-    flex: 1;
     min-width: 0;
   }
 
   .asa-title {
     margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 24px;
-    font-weight: 900;
-    color: #111827;
-  }
-
-  .asa-title-icon {
-    color: #16a34a;
     font-size: 26px;
-    font-weight: 900;
-    line-height: 1;
+    font-weight: 950;
+    letter-spacing: -0.03em;
+    color: #0f172a;
   }
 
   .asa-subtitle {
     margin: 6px 0 0;
-    color: #6b7280;
+    color: #64748b;
     font-size: 14px;
-    line-height: 1.5;
-    font-weight: 600;
+    font-weight: 650;
+    line-height: 1.45;
   }
 
-  .asa-top-info-card {
-    border: 1px solid #e5e7eb;
-    border-radius: 16px;
+  .asa-save-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+
+  .asa-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+
+  .asa-summary-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    min-width: 0;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+  }
+
+  .asa-summary-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 15px;
+    display: grid;
+    place-items: center;
+    font-size: 21px;
+    flex: 0 0 auto;
+  }
+
+  .asa-summary-icon.blue {
+    background: #eff6ff;
+    color: #2563eb;
+  }
+
+  .asa-summary-icon.green {
+    background: #ecfdf5;
+    color: #059669;
+  }
+
+  .asa-summary-icon.purple {
+    background: #f5f3ff;
+    color: #7c3aed;
+  }
+
+  .asa-summary-icon.orange {
+    background: #fff7ed;
+    color: #ea580c;
+  }
+
+  .asa-summary-label {
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  .asa-summary-value {
+    margin: 6px 0 0;
+    color: #0f172a;
+    font-size: 24px;
+    font-weight: 950;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    word-break: break-word;
+  }
+
+  .asa-summary-subvalue {
+    display: block;
+    margin-top: 6px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .asa-info-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
     padding: 18px 20px;
-    margin-bottom: 22px;
+    margin-bottom: 18px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 14px;
-    flex-wrap: wrap;
-    background-color: #ffffff;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
   }
 
-  .asa-top-info-left {
+  .asa-info-left {
     display: flex;
     align-items: center;
     gap: 12px;
     min-width: 0;
   }
 
-  .asa-top-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 14px;
-    background-color: #eff6ff;
+  .asa-info-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 15px;
+    background: #eff6ff;
     color: #2563eb;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    font-size: 21px;
+    flex: 0 0 auto;
   }
 
-  .asa-top-info-card h3 {
+  .asa-info-card h2 {
     margin: 0;
-    font-size: 16px;
-    font-weight: 900;
-    color: #111827;
+    color: #0f172a;
+    font-size: 17px;
+    font-weight: 950;
   }
 
-  .asa-top-info-card p {
-    margin: 4px 0 0;
-    color: #6b7280;
+  .asa-info-card p {
+    margin: 5px 0 0;
+    color: #64748b;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 650;
     line-height: 1.45;
   }
 
-  .asa-current-pill {
-    background-color: #ecfdf5;
-    color: #047857;
-    border: 1px solid #bbf7d0;
-    padding: 8px 14px;
+  .asa-current-pill,
+  .asa-record-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 999px;
-    font-weight: 900;
-    font-size: 14px;
+    background: #ecfdf5;
+    color: #059669;
+    border: 1px solid #bbf7d0;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 950;
     white-space: nowrap;
   }
 
-  .asa-grid {
+  .asa-main-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 22px;
+    gap: 18px;
     align-items: stretch;
   }
 
-  .asa-preview-card,
-  .asa-form-card {
-    border: 1px solid #e5e7eb;
-    background-color: #ffffff;
-    border-radius: 16px;
-    padding: 24px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-    height: 100%;
-    box-sizing: border-box;
+  .asa-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
     min-width: 0;
   }
 
-  .asa-card-header {
+  .asa-card-head {
+    padding: 18px 20px;
+    border-bottom: 1px solid #e2e8f0;
     display: flex;
+    justify-content: space-between;
+    gap: 14px;
     align-items: center;
-    gap: 16px;
-    margin-bottom: 20px;
-    min-height: 70px;
+    background: #ffffff;
   }
 
-  .asa-green-icon-box {
+  .asa-card-title {
+    margin: 0;
+    color: #0f172a;
+    font-size: 19px;
+    font-weight: 950;
+  }
+
+  .asa-card-subtitle {
+    margin: 6px 0 0;
+    color: #64748b;
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.45;
+  }
+
+  .asa-card-body {
+    padding: 20px;
+    background: #f8fafc;
+  }
+
+  .asa-current-box {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 16px;
+  }
+
+  .asa-rupee-icon {
     width: 56px;
     height: 56px;
-    border-radius: 16px;
-    background-color: #ecfdf5;
-    color: #16a34a;
+    border-radius: 18px;
+    background: #ecfdf5;
+    color: #059669;
     border: 1px solid #bbf7d0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
   }
 
-  .asa-green-icon-box span {
-    font-size: 32px;
-    font-weight: 900;
+  .asa-rupee-icon span {
+    font-size: 34px;
+    font-weight: 950;
     line-height: 1;
-    transform: translateY(-1px);
   }
 
-  .asa-card-header p {
+  .asa-current-box p {
     margin: 0;
-    color: #6b7280;
-    font-size: 14px;
-    font-weight: 900;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 950;
   }
 
-  .asa-card-header h1 {
-    margin: 6px 0 0;
-    color: #111827;
+  .asa-current-box h3 {
+    margin: 7px 0 0;
+    color: #0f172a;
     font-size: 30px;
-    font-weight: 900;
+    font-weight: 950;
+    letter-spacing: -0.04em;
     overflow-wrap: anywhere;
   }
 
   .asa-example-box {
     padding: 16px;
-    border-radius: 14px;
-    background-color: #f9fafb;
-    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
     margin-bottom: 16px;
   }
 
   .asa-example-box h3 {
     margin: 0 0 12px;
     font-size: 16px;
-    font-weight: 900;
-    color: #111827;
+    font-weight: 950;
+    color: #0f172a;
   }
 
   .asa-example-row {
@@ -543,10 +750,10 @@ const amountAssignmentCss = `
     justify-content: space-between;
     align-items: center;
     gap: 12px;
-    padding: 9px 0;
-    border-bottom: 1px solid #e5e7eb;
-    color: #374151;
-    font-weight: 800;
+    padding: 11px 0;
+    border-bottom: 1px solid #e2e8f0;
+    color: #334155;
+    font-weight: 850;
   }
 
   .asa-example-row.last {
@@ -555,18 +762,18 @@ const amountAssignmentCss = `
   }
 
   .asa-example-row strong {
-    color: #111827;
-    font-weight: 900;
+    color: #0f172a;
+    font-weight: 950;
     white-space: nowrap;
   }
 
   .asa-note-box {
     display: flex;
     align-items: flex-start;
-    gap: 8px;
-    padding: 12px;
-    border-radius: 12px;
-    background-color: #ecfdf5;
+    gap: 9px;
+    padding: 13px;
+    border-radius: 14px;
+    background: #ecfdf5;
     border: 1px solid #bbf7d0;
     color: #047857;
     font-size: 13px;
@@ -576,22 +783,14 @@ const amountAssignmentCss = `
 
   .asa-note-box svg {
     margin-top: 1px;
-    flex-shrink: 0;
+    flex: 0 0 auto;
   }
 
-  .asa-form-card > h3 {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 900;
-    color: #111827;
-  }
-
-  .asa-form-card > p {
-    margin: 6px 0 22px;
-    color: #6b7280;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.45;
+  .asa-form {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 18px;
   }
 
   .asa-form-group {
@@ -601,16 +800,16 @@ const amountAssignmentCss = `
   .asa-form-group label {
     display: block;
     margin-bottom: 8px;
-    font-size: 14px;
-    font-weight: 900;
-    color: #374151;
+    font-size: 13px;
+    font-weight: 950;
+    color: #334155;
   }
 
   .asa-form-group small {
     display: block;
-    margin-top: 7px;
-    color: #6b7280;
-    font-weight: 600;
+    margin-top: 8px;
+    color: #64748b;
+    font-weight: 700;
     font-size: 12px;
     line-height: 1.4;
   }
@@ -625,8 +824,8 @@ const amountAssignmentCss = `
     top: 50%;
     left: 13px;
     transform: translateY(-50%);
-    color: #6b7280;
-    font-weight: 900;
+    color: #64748b;
+    font-weight: 950;
     line-height: 1;
   }
 
@@ -635,56 +834,60 @@ const amountAssignmentCss = `
     top: 50%;
     left: 12px;
     transform: translateY(-50%);
-    color: #9ca3af;
+    color: #94a3b8;
   }
 
   .asa-amount-input-wrap input,
   .asa-password-wrap input {
     width: 100%;
-    border-radius: 10px;
-    border: 1px solid #d1d5db;
-    font-size: 15px;
+    height: 44px;
+    border-radius: 12px;
+    border: 1px solid #cbd5e1;
+    font-size: 14px;
     outline: none;
     box-sizing: border-box;
-    background-color: #ffffff;
-    color: #111827;
-    min-height: 46px;
+    background: #ffffff;
+    color: #0f172a;
+    font-weight: 750;
   }
 
   .asa-amount-input-wrap input {
-    padding: 12px 12px 12px 34px;
+    padding: 0 12px 0 34px;
   }
 
   .asa-password-wrap input {
-    padding: 12px 12px 12px 38px;
+    padding: 0 12px 0 38px;
+  }
+
+  .asa-amount-input-wrap input:focus,
+  .asa-password-wrap input:focus {
+    border-color: #2563eb;
   }
 
   .asa-save-btn {
-    display: flex;
+    width: 100%;
+    border: none;
+    background: #2563eb;
+    color: #ffffff;
+    height: 46px;
+    padding: 0 18px;
+    border-radius: 13px;
+    font-weight: 950;
+    cursor: pointer;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    width: 100%;
-    padding: 12px 16px;
-    border-radius: 10px;
-    border: 1px solid #2563eb;
-    background-color: #2563eb;
-    color: #ffffff;
-    cursor: pointer;
-    font-weight: 900;
-    font-size: 15px;
-    box-shadow: 0 2px 6px rgba(37,99,235,0.2);
-    min-height: 46px;
+    box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
   }
 
-  @media (max-width: 1000px) {
-    .asa-grid {
-      grid-template-columns: 1fr;
+  @media (max-width: 1200px) {
+    .asa-summary-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .asa-preview-card,
-    .asa-form-card {
-      height: auto;
+    .asa-main-grid {
+      grid-template-columns: 1fr;
     }
   }
 
@@ -697,66 +900,82 @@ const amountAssignmentCss = `
       top: 70px;
     }
 
-    .asa-header {
+    .asa-header-card {
       flex-direction: column;
       align-items: stretch;
-      gap: 12px;
-      margin-bottom: 18px;
+      padding: 16px;
     }
 
-    .asa-back-btn,
-    .asa-refresh-btn {
+    .asa-header-left {
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .asa-back-btn {
       width: 100%;
+    }
+
+    .asa-title-icon {
+      width: 44px;
+      height: 44px;
+    }
+
+    .asa-title-icon span {
+      font-size: 25px;
     }
 
     .asa-title {
       font-size: 23px;
-      align-items: flex-start;
     }
 
-    .asa-top-info-card {
-      padding: 14px;
-      align-items: stretch;
+    .asa-summary-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .asa-summary-value {
+      font-size: 23px;
+    }
+
+    .asa-info-card {
       flex-direction: column;
+      align-items: stretch;
+      padding: 16px;
     }
 
-    .asa-top-info-left {
+    .asa-info-left {
       align-items: flex-start;
     }
 
     .asa-current-pill {
       width: 100%;
-      text-align: center;
     }
 
-    .asa-preview-card,
-    .asa-form-card {
-      padding: 16px;
-      border-radius: 14px;
-    }
-
-    .asa-card-header {
+    .asa-card-head {
+      flex-direction: column;
       align-items: flex-start;
     }
 
-    .asa-card-header h1 {
+    .asa-card-body {
+      padding: 12px;
+    }
+
+    .asa-current-box {
+      align-items: flex-start;
+    }
+
+    .asa-current-box h3 {
       font-size: 24px;
-    }
-
-    .asa-green-icon-box {
-      width: 48px;
-      height: 48px;
-      border-radius: 14px;
-    }
-
-    .asa-green-icon-box span {
-      font-size: 28px;
     }
 
     .asa-example-row {
       align-items: flex-start;
       flex-direction: column;
       gap: 4px;
+    }
+
+    .asa-form {
+      padding: 14px;
     }
   }
 
@@ -765,26 +984,21 @@ const amountAssignmentCss = `
       padding: 10px;
     }
 
+    .asa-header-left {
+      flex-direction: column;
+    }
+
     .asa-title {
-      font-size: 21px;
-    }
-
-    .asa-top-info-left {
-      flex-direction: column;
-    }
-
-    .asa-card-header {
-      flex-direction: column;
-      min-height: auto;
-    }
-
-    .asa-card-header h1 {
       font-size: 22px;
     }
 
-    .asa-preview-card,
-    .asa-form-card {
-      padding: 14px;
+    .asa-info-left,
+    .asa-current-box {
+      flex-direction: column;
+    }
+
+    .asa-current-box h3 {
+      font-size: 22px;
     }
   }
 `;

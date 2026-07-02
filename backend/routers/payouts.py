@@ -1,7 +1,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from database import get_db
 import models
@@ -19,6 +19,24 @@ from services.customer_service import get_customer_or_404
 router = APIRouter(tags=["Payouts"])
 
 
+def _payout_to_response(payout: models.Payout) -> schemas.PayoutResponse:
+    customer = getattr(payout, "customer", None)
+
+    return schemas.PayoutResponse(
+        id=payout.id,
+        store_id=payout.store_id,
+        customer_id=payout.customer_id,
+        customer_name=getattr(customer, "name", None),
+        phone_number=getattr(customer, "phone_number", None),
+        points_balance=float(getattr(customer, "points_balance", 0) or 0),
+        points_redeemed=float(payout.points_redeemed or 0),
+        payout_value=float(payout.payout_value or 0),
+        status=payout.status or "completed",
+        note=payout.note,
+        created_at=payout.created_at,
+    )
+
+
 # ------------------------------------------------------------------
 # PAYOUT / REDEMPTION ROUTES
 # ------------------------------------------------------------------
@@ -30,7 +48,9 @@ def create_payout(
 ):
     require_roles(current_user, ["SuperAdmin", "Admin"])
 
-    if payout.points_redeemed <= 0:
+    redeem_points = float(payout.points_redeemed or 0)
+
+    if redeem_points <= 0:
         raise HTTPException(
             status_code=400,
             detail="Points redeemed must be greater than zero",
@@ -43,19 +63,23 @@ def create_payout(
         for_update=True,
     )
 
-    if int(customer.points_balance or 0) < payout.points_redeemed:
+    current_balance = float(customer.points_balance or 0)
+
+    if current_balance < redeem_points:
         raise HTTPException(
             status_code=400,
             detail="Customer does not have enough points",
         )
 
-    customer.points_balance = int(customer.points_balance or 0) - payout.points_redeemed
+    customer.points_balance = current_balance - redeem_points
+
+    payout_value = float(payout.payout_value or 0)
 
     db_payout = models.Payout(
         store_id=customer.store_id,
         customer_id=customer.id,
-        points_redeemed=payout.points_redeemed,
-        payout_value=payout.payout_value,
+        points_redeemed=redeem_points,
+        payout_value=payout_value,
         status="completed",
         note=payout.note,
     )
@@ -65,8 +89,8 @@ def create_payout(
         customer_id=customer.id,
         loyalty_item_id=None,
         transaction_type="REDEEM",
-        points=payout.points_redeemed,
-        amount=payout.payout_value,
+        points=redeem_points,
+        amount=payout_value,
         note=payout.note,
     )
 
@@ -75,7 +99,14 @@ def create_payout(
     db.commit()
     db.refresh(db_payout)
 
-    return db_payout
+    db_payout = (
+        db.query(models.Payout)
+        .options(joinedload(models.Payout.customer))
+        .filter(models.Payout.id == db_payout.id)
+        .first()
+    )
+
+    return _payout_to_response(db_payout)
 
 
 @router.get("/payouts", response_model=list[schemas.PayoutResponse])
@@ -91,7 +122,9 @@ def read_payouts(
 
     tenant_id = get_tenant_scope(current_user, store_id)
 
-    query = db.query(models.Payout)
+    query = db.query(models.Payout).options(
+        joinedload(models.Payout.customer)
+    )
 
     if tenant_id is not None:
         query = query.filter(models.Payout.store_id == tenant_id)
@@ -99,6 +132,11 @@ def read_payouts(
     if customer_id is not None:
         query = query.filter(models.Payout.customer_id == customer_id)
 
-    return query.order_by(
-        models.Payout.created_at.desc()
-    ).offset(skip).limit(limit).all()
+    payouts = (
+        query.order_by(models.Payout.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    return [_payout_to_response(payout) for payout in payouts]

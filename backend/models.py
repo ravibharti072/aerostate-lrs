@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float, Boolean, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
@@ -34,6 +34,12 @@ class Store(Base):
     point_transactions = relationship("PointTransaction", back_populates="store")
     payouts = relationship("Payout", back_populates="store")
 
+    whatsapp_message_logs = relationship(
+        "WhatsAppMessageLog",
+        back_populates="store",
+        cascade="all, delete-orphan",
+    )
+
 
 # -----------------------------
 # USER MODEL
@@ -53,6 +59,11 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     store = relationship("Store", back_populates="users")
+
+    whatsapp_message_logs = relationship(
+        "WhatsAppMessageLog",
+        back_populates="sent_by_user",
+    )
 
 
 # -----------------------------
@@ -74,7 +85,6 @@ class Customer(Base):
     bank_name = Column(String, nullable=True)
     ifsc_code = Column(String, nullable=True)
 
-    # Decimal point balance supported.
     points_balance = Column(Float, default=0.0)
 
     is_active = Column(Boolean, default=True)
@@ -84,6 +94,12 @@ class Customer(Base):
     reward_entries = relationship("RewardEntry", back_populates="customer")
     point_transactions = relationship("PointTransaction", back_populates="customer")
     payouts = relationship("Payout", back_populates="customer")
+
+    whatsapp_message_logs = relationship(
+        "WhatsAppMessageLog",
+        back_populates="customer",
+        cascade="all, delete-orphan",
+    )
 
 
 # -----------------------------
@@ -97,11 +113,8 @@ class LoyaltyItem(Base):
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=True)
 
     item_name = Column(String, nullable=False)
-
-    # For new Item Master, default category is "item".
     category = Column(String, nullable=False, default="item")
 
-    # Optional SKU
     sku = Column(String, index=True, nullable=True)
 
     unit = Column(String, nullable=False, default="pcs", server_default="pcs")
@@ -130,7 +143,6 @@ class RewardEntry(Base):
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
 
-    # Decimal total points supported.
     total_points = Column(Float, nullable=False, default=0.0)
 
     note = Column(String, nullable=True)
@@ -142,6 +154,12 @@ class RewardEntry(Base):
 
     items = relationship(
         "RewardEntryItem",
+        back_populates="reward_entry",
+        cascade="all, delete-orphan",
+    )
+
+    whatsapp_message_logs = relationship(
+        "WhatsAppMessageLog",
         back_populates="reward_entry",
         cascade="all, delete-orphan",
     )
@@ -168,9 +186,6 @@ class RewardEntryItem(Base):
         nullable=False,
     )
 
-    # This links each reward entry item row to its point transaction.
-    # Needed for Transaction History edit:
-    # edit product/unit/quantity -> auto update point transaction.
     point_transaction_id = Column(
         Integer,
         ForeignKey("point_transactions.id"),
@@ -180,7 +195,6 @@ class RewardEntryItem(Base):
     unit = Column(String, nullable=False)
     quantity = Column(Float, nullable=False)
 
-    # Decimal points supported.
     points_per_unit = Column(Float, nullable=False, default=0.0)
     total_points = Column(Float, nullable=False, default=0.0)
 
@@ -203,16 +217,13 @@ class PointTransaction(Base):
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
 
-    # Optional item link from item master
     loyalty_item_id = Column(Integer, ForeignKey("loyalty_items.id"), nullable=True)
 
     # EARN, REDEEM, MANUAL_ADD, MANUAL_DEDUCT
     transaction_type = Column(String, nullable=False)
 
-    # Decimal transaction points supported.
     points = Column(Float, nullable=False, default=0.0)
 
-    # Optional amount used for old/manual point calculation
     amount = Column(Float, nullable=True)
 
     note = Column(String, nullable=True)
@@ -240,7 +251,6 @@ class Payout(Base):
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
 
-    # Decimal redeem points supported.
     points_redeemed = Column(Float, nullable=False, default=0.0)
 
     payout_value = Column(Float, nullable=True)
@@ -252,3 +262,85 @@ class Payout(Base):
 
     store = relationship("Store", back_populates="payouts")
     customer = relationship("Customer", back_populates="payouts")
+
+    whatsapp_message_logs = relationship(
+        "WhatsAppMessageLog",
+        back_populates="payout",
+        cascade="all, delete-orphan",
+    )
+
+
+# -----------------------------
+# WHATSAPP MESSAGE LOGS
+# For reward point and redemption/payout messages.
+# -----------------------------
+class WhatsAppMessageLog(Base):
+    __tablename__ = "whatsapp_message_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    store_id = Column(Integer, ForeignKey("stores.id"), nullable=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+
+    # Reward message link
+    reward_entry_id = Column(
+        Integer,
+        ForeignKey("reward_entries.id"),
+        nullable=True,
+    )
+
+    # Redemption / payout message link
+    payout_id = Column(
+        Integer,
+        ForeignKey("payouts.id"),
+        nullable=True,
+    )
+
+    # reward_points / redemption_points
+    message_type = Column(String, nullable=False, default="reward_points")
+
+    # Software user who clicked Send WhatsApp
+    sent_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Customer phone used for sending
+    phone_number = Column(String, nullable=False)
+
+    # WhatsApp Cloud API template details
+    template_name = Column(String, nullable=True)
+    template_language = Column(String, nullable=True, default="en")
+
+    # Message preview saved for history/report.
+    # Actual WhatsApp API sends approved template variables.
+    message_preview = Column(Text, nullable=True)
+
+    # Reward transaction values at sending time
+    added_points = Column(Float, nullable=False, default=0.0)
+
+    # Redemption transaction values at sending time
+    redeemed_points = Column(Float, nullable=False, default=0.0)
+    payout_value = Column(Float, nullable=True)
+
+    # Customer total balance after transaction
+    total_points = Column(Float, nullable=False, default=0.0)
+
+    # pending, sent, delivered, read, failed
+    status = Column(String, nullable=False, default="pending")
+
+    # WhatsApp/Meta message id after successful API call
+    provider_message_id = Column(String, nullable=True)
+
+    # Store error if API fails
+    error_message = Column(Text, nullable=True)
+
+    # Raw small provider response/error summary for debugging.
+    # Do not store access token or secrets here.
+    provider_response = Column(Text, nullable=True)
+
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    store = relationship("Store", back_populates="whatsapp_message_logs")
+    customer = relationship("Customer", back_populates="whatsapp_message_logs")
+    reward_entry = relationship("RewardEntry", back_populates="whatsapp_message_logs")
+    payout = relationship("Payout", back_populates="whatsapp_message_logs")
+    sent_by_user = relationship("User", back_populates="whatsapp_message_logs")

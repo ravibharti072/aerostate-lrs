@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   FiAward,
   FiSearch,
-  FiRefreshCw,
   FiChevronLeft,
   FiChevronRight,
   FiUser,
@@ -294,8 +293,8 @@ export default function Leaderboard({ onBack }) {
       <style>{leaderboardCss}</style>
 
       <div className="asl-leaderboard-page">
-        <div className="asl-leaderboard-header">
-          <div className="asl-leaderboard-header-left">
+        <section className="asl-header-card">
+          <div className="asl-header-left">
             <button
               type="button"
               className="asl-back-button"
@@ -305,35 +304,23 @@ export default function Leaderboard({ onBack }) {
               Back
             </button>
 
-            <div className="asl-title-row">
-              <div className="asl-title-icon">
-                <FiAward />
-              </div>
+            <div className="asl-title-icon">
+              <FiAward />
+            </div>
 
-              <div>
-                <h1 className="asl-page-title">Leaderboard</h1>
-                <p className="asl-page-subtitle">
-                  Rank customers by points balance, earned points, redemption,
-                  and reward activity.
-                </p>
-              </div>
+            <div>
+              <h1 className="asl-page-title">Leaderboard</h1>
+              <p className="asl-page-subtitle">
+                Rank customers by points balance, earned points, redemption, and
+                reward activity.
+              </p>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={fetchLeaderboardData}
-            className="asl-refresh-button"
-            disabled={loading}
-          >
-            <FiRefreshCw />
-            {loading ? "Refreshing..." : "Refresh"}
-          </button>
-        </div>
+        </section>
 
         {error && <div className="asl-error-box">{error}</div>}
 
-        <div className="asl-summary-grid">
+        <section className="asl-summary-grid">
           <SummaryCard
             icon={<FiUser />}
             iconClass="blue"
@@ -361,9 +348,9 @@ export default function Leaderboard({ onBack }) {
             label="Redeemed Points"
             value={formatNumber(summary.totalRedeemed)}
           />
-        </div>
+        </section>
 
-        <div className="asl-toolbar">
+        <section className="asl-toolbar-card">
           <div className="asl-search-box">
             <FiSearch className="asl-search-icon" />
 
@@ -371,8 +358,8 @@ export default function Leaderboard({ onBack }) {
               type="text"
               placeholder="Search by customer name, phone, or address..."
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
+              onChange={(event) => {
+                setSearch(event.target.value);
                 setCurrentPage(1);
               }}
               className="asl-search-input"
@@ -381,8 +368,8 @@ export default function Leaderboard({ onBack }) {
 
           <select
             value={sortBy}
-            onChange={(e) => {
-              setSortBy(e.target.value);
+            onChange={(event) => {
+              setSortBy(event.target.value);
               setCurrentPage(1);
             }}
             className="asl-select"
@@ -393,11 +380,16 @@ export default function Leaderboard({ onBack }) {
             <option value="rewardEntries">Sort by Reward Entries</option>
             <option value="name">Sort by Name</option>
           </select>
-        </div>
+        </section>
 
-        <div className="asl-table-card">
+        <section className="asl-table-card">
           <div className="asl-table-header">
-            <h2 className="asl-section-title">Customer Rankings</h2>
+            <div>
+              <h2 className="asl-section-title">Customer Rankings</h2>
+              <p className="asl-section-subtitle">
+                Customers ranked by selected sorting method.
+              </p>
+            </div>
 
             <span className="asl-count-badge">
               {leaderboardData.length} customers
@@ -447,10 +439,7 @@ export default function Leaderboard({ onBack }) {
                           </div>
 
                           <div className="asl-customer-text">
-                            <div className="asl-customer-name">
-                              {item.name}
-                            </div>
-
+                            <div className="asl-customer-name">{item.name}</div>
                             <div className="asl-customer-address">
                               {item.address}
                             </div>
@@ -532,7 +521,7 @@ export default function Leaderboard({ onBack }) {
               <FiChevronRight />
             </button>
           </div>
-        </div>
+        </section>
       </div>
     </>
   );
@@ -602,267 +591,258 @@ const MobileRankCard = ({ item, getRankClass }) => (
 const leaderboardCss = `
   .asl-leaderboard-page {
     width: 100%;
-    max-width: 100%;
     min-height: 100vh;
+    padding: 24px;
+    background: #f8fafc;
     color: #0f172a;
-    padding: 18px 22px 28px;
     box-sizing: border-box;
     overflow-x: hidden;
   }
 
-  .asl-leaderboard-header {
-    background-color: #ffffff;
-    border: 1px solid #dbe3ee;
-    border-radius: 18px;
-    padding: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
+  .asl-header-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    padding: 22px;
     margin-bottom: 18px;
-    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
-  }
-
-  .asl-leaderboard-header-left {
     display: flex;
-    align-items: center;
+    justify-content: space-between;
     gap: 16px;
-    min-width: 0;
-  }
-
-  .asl-back-button {
-    height: 40px;
-    padding: 0 14px;
-    border-radius: 12px;
-    border: 1px solid #dbeafe;
-    background-color: #eff6ff;
-    color: #2563eb;
-    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-size: 14px;
-    font-weight: 800;
-    cursor: pointer;
-    flex-shrink: 0;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
   }
 
-  .asl-title-row {
+  .asl-header-left {
     display: flex;
     align-items: center;
     gap: 14px;
     min-width: 0;
   }
 
-  .asl-title-icon {
-    width: 46px;
-    height: 46px;
-    border-radius: 14px;
-    background-color: #eff6ff;
-    color: #2563eb;
-    display: flex;
+  .asl-back-button {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 8px;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #2563eb;
+    height: 42px;
+    padding: 0 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 900;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+
+  .asl-back-button:hover {
+    background: #dbeafe;
+  }
+
+  .asl-title-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    background: #eff6ff;
+    color: #2563eb;
+    display: grid;
+    place-items: center;
     font-size: 22px;
-    flex-shrink: 0;
+    flex: 0 0 auto;
   }
 
   .asl-page-title {
     margin: 0;
-    font-size: 28px;
-    font-weight: 900;
-    letter-spacing: -0.04em;
+    font-size: 26px;
+    font-weight: 950;
+    letter-spacing: -0.03em;
     color: #0f172a;
   }
 
   .asl-page-subtitle {
     margin: 6px 0 0;
     color: #64748b;
-    font-size: 15px;
-    font-weight: 500;
+    font-size: 14px;
+    font-weight: 650;
     line-height: 1.45;
   }
 
-  .asl-refresh-button {
-    height: 42px;
-    padding: 0 16px;
-    border-radius: 12px;
-    border: none;
-    background-color: #2563eb;
-    color: #ffffff;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-weight: 800;
-    cursor: pointer;
-    box-shadow: 0 10px 20px rgba(37, 99, 235, 0.22);
-    flex-shrink: 0;
+  .asl-page-button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 
   .asl-error-box {
-    background-color: #fef2f2;
+    background: #fef2f2;
     border: 1px solid #fecaca;
     color: #991b1b;
-    padding: 14px 16px;
+    padding: 13px 16px;
     border-radius: 14px;
     margin-bottom: 18px;
-    font-weight: 700;
+    font-weight: 800;
   }
 
   .asl-summary-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
+    gap: 16px;
     margin-bottom: 18px;
   }
 
   .asl-summary-card {
-    background-color: #ffffff;
-    border: 1px solid #dbe3ee;
-    border-radius: 16px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
     padding: 18px;
     display: flex;
     align-items: center;
-    gap: 14px;
-    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+    gap: 15px;
     min-width: 0;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
   }
 
   .asl-summary-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    border-radius: 15px;
+    display: grid;
+    place-items: center;
+    font-size: 21px;
+    flex: 0 0 auto;
   }
 
   .asl-summary-icon.blue {
-    background-color: #eff6ff;
+    background: #eff6ff;
     color: #2563eb;
   }
 
   .asl-summary-icon.green {
-    background-color: #ecfdf5;
+    background: #ecfdf5;
     color: #059669;
   }
 
   .asl-summary-icon.purple {
-    background-color: #f5f3ff;
+    background: #f5f3ff;
     color: #7c3aed;
   }
 
   .asl-summary-icon.orange {
-    background-color: #fff7ed;
+    background: #fff7ed;
     color: #ea580c;
-  }
-
-  .asl-summary-text {
-    min-width: 0;
   }
 
   .asl-summary-label {
     margin: 0;
-    font-size: 13px;
     color: #64748b;
-    font-weight: 800;
-    line-height: 1.35;
+    font-size: 13px;
+    font-weight: 900;
   }
 
   .asl-summary-value {
     margin: 6px 0 0;
-    font-size: 25px;
-    font-weight: 900;
-    letter-spacing: -0.04em;
     color: #0f172a;
-    overflow-wrap: anywhere;
+    font-size: 26px;
+    font-weight: 950;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    word-break: break-word;
   }
 
-  .asl-toolbar {
-    display: flex;
-    gap: 14px;
-    margin-bottom: 16px;
-    max-width: 100%;
+  .asl-toolbar-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 10px;
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) 240px;
+    gap: 12px;
+    margin-bottom: 18px;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
   }
 
   .asl-search-box {
-    flex: 1;
-    min-width: 0;
-    height: 46px;
-    background-color: #ffffff;
-    border: 1px solid #dbe3ee;
-    border-radius: 14px;
+    height: 44px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    background: #ffffff;
     display: flex;
     align-items: center;
-    padding: 0 14px;
-    gap: 10px;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.03);
+    gap: 9px;
+    padding: 0 13px;
+    color: #94a3b8;
   }
 
   .asl-search-icon {
-    color: #64748b;
+    color: #94a3b8;
     flex-shrink: 0;
   }
 
   .asl-search-input {
+    border: none;
+    background: transparent;
+    outline: none;
     width: 100%;
     min-width: 0;
-    border: none;
-    outline: none;
-    font-size: 14px;
-    font-weight: 650;
     color: #0f172a;
-    background-color: #ffffff;
+    font-size: 14px;
+    font-weight: 750;
   }
 
   .asl-select {
-    height: 46px;
-    min-width: 230px;
-    border: 1px solid #dbe3ee;
-    border-radius: 14px;
-    background-color: #ffffff;
-    padding: 0 14px;
-    font-weight: 800;
+    height: 44px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    background: #ffffff;
     color: #0f172a;
+    padding: 0 12px;
+    font-weight: 900;
     outline: none;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.03);
   }
 
   .asl-table-card {
-    background-color: #ffffff;
-    border: 1px solid #dbe3ee;
-    border-radius: 18px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
     overflow: hidden;
-    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.04);
     max-width: 100%;
   }
 
   .asl-table-header {
-    padding: 20px 22px;
+    padding: 18px 20px;
+    border-bottom: 1px solid #e2e8f0;
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    border-bottom: 1px solid #dbe3ee;
+    gap: 14px;
+    align-items: center;
+    background: #ffffff;
   }
 
   .asl-section-title {
     margin: 0;
-    font-size: 20px;
-    font-weight: 900;
     color: #0f172a;
+    font-size: 19px;
+    font-weight: 950;
+  }
+
+  .asl-section-subtitle {
+    margin: 6px 0 0;
+    color: #64748b;
+    font-size: 14px;
+    font-weight: 650;
   }
 
   .asl-count-badge {
-    background-color: #eff6ff;
-    color: #2563eb;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 999px;
-    padding: 7px 12px;
+    background: #eff6ff;
+    color: #2563eb;
+    padding: 8px 13px;
     font-size: 13px;
-    font-weight: 900;
+    font-weight: 950;
     white-space: nowrap;
   }
 
@@ -875,20 +855,21 @@ const leaderboardCss = `
 
   .asl-table {
     width: 100%;
-    min-width: 920px;
+    min-width: 980px;
     border-collapse: separate;
     border-spacing: 0;
   }
 
   .asl-table th {
-    text-align: left;
-    padding: 14px 18px;
-    font-size: 12px;
+    background: #f8fafc;
     color: #64748b;
-    background-color: #f8fafc;
-    border-bottom: 1px solid #dbe3ee;
+    text-align: left;
+    font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+    font-weight: 950;
+    padding: 14px 16px;
+    border-bottom: 1px solid #e2e8f0;
     white-space: nowrap;
   }
 
@@ -897,24 +878,28 @@ const leaderboardCss = `
   }
 
   .asl-table td {
-    padding: 15px 18px;
-    vertical-align: middle;
-    font-size: 14px;
-    font-weight: 650;
+    padding: 16px;
     border-bottom: 1px solid #eef2f7;
+    vertical-align: middle;
     color: #0f172a;
+    font-size: 14px;
+    font-weight: 750;
   }
 
   .asl-table td.right {
     text-align: right;
-    font-weight: 800;
+    font-weight: 900;
+  }
+
+  .asl-table tbody tr:hover {
+    background: #f8fafc;
   }
 
   .asl-empty-cell {
     padding: 40px !important;
     text-align: center;
     color: #64748b;
-    font-weight: 800;
+    font-weight: 850;
   }
 
   .asl-rank-badge {
@@ -924,24 +909,24 @@ const leaderboardCss = `
     min-width: 46px;
     height: 30px;
     border-radius: 999px;
-    background-color: #f1f5f9;
+    background: #f1f5f9;
     color: #475569;
-    font-weight: 900;
+    font-weight: 950;
     font-size: 13px;
   }
 
   .asl-rank-badge.gold {
-    background-color: #fef3c7;
+    background: #fef3c7;
     color: #b45309;
   }
 
   .asl-rank-badge.silver {
-    background-color: #f1f5f9;
+    background: #f1f5f9;
     color: #334155;
   }
 
   .asl-rank-badge.bronze {
-    background-color: #ffedd5;
+    background: #ffedd5;
     color: #c2410c;
   }
 
@@ -955,13 +940,12 @@ const leaderboardCss = `
   .asl-avatar {
     width: 38px;
     height: 38px;
-    border-radius: 13px;
-    background-color: #eef2ff;
+    border-radius: 12px;
+    background: #eff6ff;
     color: #2563eb;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 900;
+    display: grid;
+    place-items: center;
+    font-weight: 950;
     flex-shrink: 0;
   }
 
@@ -970,7 +954,7 @@ const leaderboardCss = `
   }
 
   .asl-customer-name {
-    font-weight: 900;
+    font-weight: 950;
     color: #0f172a;
     overflow-wrap: anywhere;
   }
@@ -983,6 +967,7 @@ const leaderboardCss = `
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    font-weight: 750;
   }
 
   .asl-phone-text {
@@ -991,6 +976,7 @@ const leaderboardCss = `
     gap: 7px;
     color: #334155;
     white-space: nowrap;
+    font-weight: 900;
   }
 
   .asl-points-pill {
@@ -999,9 +985,9 @@ const leaderboardCss = `
     justify-content: center;
     padding: 7px 12px;
     border-radius: 999px;
-    background-color: #ecfdf5;
+    background: #ecfdf5;
     color: #047857;
-    font-weight: 900;
+    font-weight: 950;
     white-space: nowrap;
   }
 
@@ -1015,42 +1001,36 @@ const leaderboardCss = `
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    border-top: 1px solid #dbe3ee;
-    background-color: #ffffff;
+    border-top: 1px solid #e2e8f0;
+    background: #ffffff;
   }
 
   .asl-page-button {
-    height: 38px;
-    padding: 0 14px;
+    height: 40px;
+    padding: 0 15px;
     border-radius: 12px;
-    border: 1px solid #dbe3ee;
-    background-color: #ffffff;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
     color: #0f172a;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    font-weight: 900;
+    font-weight: 950;
     cursor: pointer;
   }
 
-  .asl-page-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
   .asl-page-info {
-    font-weight: 900;
+    font-weight: 950;
     color: #64748b;
     text-align: center;
   }
 
   .asl-mobile-rank-card {
-    background-color: #ffffff;
-    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
     border-radius: 16px;
     padding: 14px;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
   }
 
   .asl-mobile-card-top {
@@ -1081,6 +1061,7 @@ const leaderboardCss = `
     gap: 7px;
     font-size: 13px;
     line-height: 1.4;
+    font-weight: 750;
   }
 
   .asl-mobile-address svg {
@@ -1096,15 +1077,15 @@ const leaderboardCss = `
   }
 
   .asl-mobile-stat {
-    background-color: #f8fafc;
-    border: 1px solid #e5e7eb;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
     border-radius: 12px;
     padding: 10px;
     min-width: 0;
   }
 
   .asl-mobile-stat.balance {
-    background-color: #ecfdf5;
+    background: #ecfdf5;
     border-color: #bbf7d0;
   }
 
@@ -1112,7 +1093,7 @@ const leaderboardCss = `
     display: block;
     color: #64748b;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 900;
   }
 
   .asl-mobile-stat strong {
@@ -1120,7 +1101,7 @@ const leaderboardCss = `
     margin-top: 5px;
     color: #0f172a;
     font-size: 15px;
-    font-weight: 900;
+    font-weight: 950;
     overflow-wrap: anywhere;
   }
 
@@ -1128,81 +1109,47 @@ const leaderboardCss = `
     padding: 24px;
     text-align: center;
     color: #64748b;
-    font-weight: 800;
+    font-weight: 850;
   }
 
   @media (max-width: 1200px) {
     .asl-summary-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-  }
 
-  @media (max-width: 900px) {
-    .asl-leaderboard-page {
-      padding: 14px 14px 28px;
-    }
-
-    .asl-leaderboard-header {
-      align-items: flex-start;
-      flex-direction: column;
-      padding: 18px;
-    }
-
-    .asl-leaderboard-header-left {
-      width: 100%;
-      align-items: flex-start;
-    }
-
-    .asl-refresh-button {
-      width: 100%;
-    }
-
-    .asl-toolbar {
-      flex-direction: column;
+    .asl-toolbar-card {
+      grid-template-columns: 1fr;
     }
 
     .asl-select {
       width: 100%;
-      min-width: 0;
     }
   }
 
   @media (max-width: 768px) {
     .asl-leaderboard-page {
-      padding: 12px 12px 26px;
+      padding: 12px;
     }
 
-    .asl-leaderboard-header {
-      border-radius: 16px;
-      gap: 16px;
-    }
-
-    .asl-leaderboard-header-left {
+    .asl-header-card {
       flex-direction: column;
-      gap: 14px;
+      align-items: stretch;
+      padding: 16px;
     }
 
-    .asl-title-row {
-      width: 100%;
+    .asl-header-left {
+      flex-wrap: wrap;
       align-items: flex-start;
     }
 
     .asl-title-icon {
-      width: 42px;
-      height: 42px;
-      border-radius: 13px;
+      width: 44px;
+      height: 44px;
+      font-size: 20px;
     }
 
     .asl-page-title {
-      font-size: 24px;
-    }
-
-    .asl-page-subtitle {
-      font-size: 14px;
-    }
-
-    .asl-back-button {
-      width: 100%;
+      font-size: 23px;
     }
 
     .asl-summary-grid {
@@ -1210,27 +1157,13 @@ const leaderboardCss = `
       gap: 12px;
     }
 
-    .asl-summary-card {
-      padding: 16px;
-    }
-
     .asl-summary-value {
       font-size: 23px;
     }
 
-    .asl-search-box {
-      height: auto;
-      min-height: 46px;
-    }
-
     .asl-table-header {
-      padding: 16px;
-      align-items: flex-start;
       flex-direction: column;
-    }
-
-    .asl-section-title {
-      font-size: 18px;
+      align-items: flex-start;
     }
 
     .asl-table-wrap {
@@ -1240,8 +1173,8 @@ const leaderboardCss = `
     .asl-mobile-list {
       display: grid;
       gap: 12px;
-      padding: 14px;
-      background-color: #f8fafc;
+      padding: 12px;
+      background: #f8fafc;
     }
 
     .asl-pagination {
@@ -1249,34 +1182,18 @@ const leaderboardCss = `
       flex-wrap: wrap;
     }
 
-    .asl-page-button {
-      flex: 1;
-      min-width: 130px;
-    }
-
     .asl-page-info {
       width: 100%;
       order: -1;
     }
+
+    .asl-page-button {
+      flex: 1;
+      min-width: 130px;
+    }
   }
 
   @media (max-width: 420px) {
-    .asl-leaderboard-page {
-      padding: 10px 10px 24px;
-    }
-
-    .asl-title-row {
-      gap: 10px;
-    }
-
-    .asl-page-title {
-      font-size: 22px;
-    }
-
-    .asl-summary-card {
-      align-items: flex-start;
-    }
-
     .asl-mobile-stats {
       grid-template-columns: 1fr;
     }

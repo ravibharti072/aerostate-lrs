@@ -614,6 +614,12 @@ class PayoutResponse(BaseModel):
     id: int
     store_id: Optional[int] = None
     customer_id: int
+
+    # Optional frontend-friendly fields.
+    customer_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    points_balance: Optional[float] = None
+
     points_redeemed: float
     payout_value: Optional[float] = None
     status: str
@@ -648,3 +654,124 @@ class LeaderboardCustomerUpdate(BaseModel):
 class PointValueUpdate(BaseModel):
     point_value_rupees: float
     password: str
+
+
+# ----------------------------------------
+# WHATSAPP MESSAGE SCHEMAS
+# ----------------------------------------
+class WhatsAppRewardSendRequest(BaseModel):
+    # By default, block duplicate send if already sent.
+    # Frontend can pass allow_resend=True only after user confirms resend.
+    allow_resend: Optional[bool] = False
+
+
+class WhatsAppRedemptionSendRequest(BaseModel):
+    # By default, block duplicate send if already sent.
+    # Frontend can pass allow_resend=True only after user confirms resend.
+    allow_resend: Optional[bool] = False
+
+
+class WhatsAppRewardSendResponse(BaseModel):
+    success: bool
+    log_id: Optional[int] = None
+
+    message_type: str = "reward_points"
+
+    reward_entry_id: int
+    payout_id: Optional[int] = None
+
+    customer_id: int
+    customer_name: Optional[str] = None
+    phone_number: Optional[str] = None
+
+    added_points: float
+    redeemed_points: float = 0.0
+    payout_value: Optional[float] = None
+    total_points: float
+
+    status: str
+    message_preview: Optional[str] = None
+
+    provider_message_id: Optional[str] = None
+    error_message: Optional[str] = None
+    sent_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class WhatsAppRedemptionSendResponse(BaseModel):
+    success: bool
+    log_id: Optional[int] = None
+
+    message_type: str = "redemption_points"
+
+    reward_entry_id: Optional[int] = None
+    payout_id: int
+
+    customer_id: int
+    customer_name: Optional[str] = None
+    phone_number: Optional[str] = None
+
+    added_points: float = 0.0
+    redeemed_points: float
+    payout_value: Optional[float] = None
+    total_points: float
+
+    status: str
+    message_preview: Optional[str] = None
+
+    provider_message_id: Optional[str] = None
+    error_message: Optional[str] = None
+    sent_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class WhatsAppMessageLogResponse(BaseModel):
+    id: int
+
+    store_id: Optional[int] = None
+    customer_id: int
+
+    reward_entry_id: Optional[int] = None
+    payout_id: Optional[int] = None
+
+    # reward_points / redemption_points
+    message_type: Optional[str] = "reward_points"
+
+    sent_by_user_id: Optional[int] = None
+
+    customer_name: Optional[str] = None
+    store_name: Optional[str] = None
+    sent_by_username: Optional[str] = None
+
+    phone_number: str
+
+    template_name: Optional[str] = None
+    template_language: Optional[str] = None
+
+    message_preview: Optional[str] = None
+
+    added_points: float = 0.0
+    redeemed_points: float = 0.0
+    payout_value: Optional[float] = None
+    total_points: float = 0.0
+
+    # pending, sent, delivered, read, failed
+    status: str
+
+    provider_message_id: Optional[str] = None
+    error_message: Optional[str] = None
+
+    sent_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class WhatsAppMessageLogListResponse(BaseModel):
+    total: int
+    logs: List[WhatsAppMessageLogResponse] = Field(default_factory=list)

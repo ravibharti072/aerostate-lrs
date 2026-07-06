@@ -25,6 +25,8 @@ function RedemptionPortal({ onBack }) {
   const [customers, setCustomers] = useState([]);
   const [rewardEntries, setRewardEntries] = useState([]);
   const [payouts, setPayouts] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [transactionsLoaded, setTransactionsLoaded] = useState(false);
 
   const [pointValue, setPointValue] = useState(1);
 
@@ -78,6 +80,7 @@ function RedemptionPortal({ onBack }) {
     if (Array.isArray(data?.items)) return data.items;
     if (Array.isArray(data?.customers)) return data.customers;
     if (Array.isArray(data?.records)) return data.records;
+    if (Array.isArray(data?.transactions)) return data.transactions;
     if (Array.isArray(data?.payouts)) return data.payouts;
     if (Array.isArray(data?.data)) return data.data;
     return [];
@@ -91,6 +94,11 @@ function RedemptionPortal({ onBack }) {
         data?.amount ??
         1
     );
+  };
+
+  const toNumber = (value) => {
+    const number = Number(value || 0);
+    return Number.isFinite(number) ? number : 0;
   };
 
   const formatAmount = (value) => {
@@ -131,15 +139,138 @@ function RedemptionPortal({ onBack }) {
     return fallback;
   };
 
+  const normalizeTransactionType = (transaction) => {
+    return String(
+      transaction?.transaction_type ||
+        transaction?.type ||
+        transaction?.entry_type ||
+        transaction?.status ||
+        ""
+    )
+      .trim()
+      .toUpperCase();
+  };
+
+  const getTransactionPoints = (transaction) => {
+    return toNumber(
+      transaction?.points ??
+        transaction?.total_points ??
+        transaction?.points_redeemed ??
+        transaction?.redeemed_points ??
+        transaction?.redeem_points ??
+        0
+    );
+  };
+
+  const getTransactionAmount = (transaction) => {
+    const amount = toNumber(
+      transaction?.amount ??
+        transaction?.payout_value ??
+        transaction?.value ??
+        transaction?.total_amount ??
+        0
+    );
+
+    if (amount > 0) return amount;
+
+    return Math.abs(getTransactionPoints(transaction)) * Number(pointValue || 0);
+  };
+
+  const isRedeemedTransaction = (transaction) => {
+    const type = normalizeTransactionType(transaction);
+    const points = getTransactionPoints(transaction);
+
+    if (points < 0) return true;
+
+    return (
+      type === "POINTS_DEBIT" ||
+      type === "DEBIT" ||
+      type === "REDEEM" ||
+      type === "REDEEMED" ||
+      type === "USED" ||
+      type === "MANUAL_DEDUCT" ||
+      type === "PAYOUT" ||
+      type.includes("REDEEM") ||
+      type.includes("DEBIT") ||
+      type.includes("USED") ||
+      type.includes("PAYOUT")
+    );
+  };
+
+  const getPayoutPoints = (payout) => {
+    return Math.abs(
+      toNumber(
+        payout?.points_redeemed ??
+          payout?.pointsRedeemed ??
+          payout?.redeem_points ??
+          payout?.redeemed_points ??
+          payout?.points ??
+          0
+      )
+    );
+  };
+
+  const getPayoutAmount = (payout) => {
+    const amount = toNumber(payout?.payout_value ?? payout?.amount ?? 0);
+
+    if (amount > 0) return amount;
+
+    return getPayoutPoints(payout) * Number(pointValue || 0);
+  };
+
+  const getCustomerRedeemStatsFromTransactions = (customerId) => {
+    const customerTransactions = transactions.filter((transaction) => {
+      return (
+        Number(transaction.customer_id) === Number(customerId) &&
+        isRedeemedTransaction(transaction)
+      );
+    });
+
+    const totalRedeemed = customerTransactions.reduce((sum, transaction) => {
+      return sum + Math.abs(getTransactionPoints(transaction));
+    }, 0);
+
+    const totalPayoutValue = customerTransactions.reduce((sum, transaction) => {
+      return sum + getTransactionAmount(transaction);
+    }, 0);
+
+    return {
+      totalRedeemed,
+      totalPayoutValue,
+      payoutCount: customerTransactions.length,
+    };
+  };
+
+  const getCustomerRedeemStatsFromPayouts = (customerId) => {
+    const customerPayouts = payouts.filter(
+      (payout) => Number(payout.customer_id) === Number(customerId)
+    );
+
+    const totalRedeemed = customerPayouts.reduce((sum, payout) => {
+      return sum + getPayoutPoints(payout);
+    }, 0);
+
+    const totalPayoutValue = customerPayouts.reduce((sum, payout) => {
+      return sum + getPayoutAmount(payout);
+    }, 0);
+
+    return {
+      totalRedeemed,
+      totalPayoutValue,
+      payoutCount: customerPayouts.length,
+    };
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
 
-      const [customerRes, rewardRes, payoutRes, pointValueRes] =
+      const [customerRes, rewardRes, payoutRes, transactionRes, pointValueRes] =
         await Promise.allSettled([
           api.get("/customers/"),
           api.get("/reward-entries/"),
           api.get("/payouts"),
+          api.get("/transactions/"),
           api.get("/settings/point-value"),
         ]);
 
@@ -158,6 +289,11 @@ function RedemptionPortal({ onBack }) {
           ? normalizeList(payoutRes.value.data)
           : [];
 
+      const transactionList =
+        transactionRes.status === "fulfilled"
+          ? normalizeList(transactionRes.value.data)
+          : [];
+
       if (pointValueRes.status === "fulfilled") {
         const value = normalizePointValue(pointValueRes.value.data);
 
@@ -169,6 +305,8 @@ function RedemptionPortal({ onBack }) {
       setCustomers(customerList);
       setRewardEntries(rewardList);
       setPayouts(payoutList);
+      setTransactions(transactionList);
+      setTransactionsLoaded(transactionRes.status === "fulfilled");
 
       setSelectedCustomer((prevSelected) => {
         if (!prevSelected) return null;
@@ -201,28 +339,27 @@ function RedemptionPortal({ onBack }) {
     }, 0);
 
     const totalRewardPoints = entries.reduce((sum, entry) => {
-      return sum + Number(entry.total_points || 0);
+      const quantity = Number(entry.quantity || 0);
+      const pointsPerUnit = Number(entry.points_per_unit || 0);
+
+      if (quantity > 0 && pointsPerUnit > 0) {
+        return sum + quantity * pointsPerUnit;
+      }
+
+      return sum + Number(entry.total_points || entry.points || 0);
     }, 0);
 
-    const customerPayouts = payouts.filter(
-      (payout) => Number(payout.customer_id) === Number(customerId)
-    );
-
-    const totalRedeemed = customerPayouts.reduce((sum, payout) => {
-      return sum + Number(payout.points_redeemed || 0);
-    }, 0);
-
-    const totalPayoutValue = customerPayouts.reduce((sum, payout) => {
-      return sum + Number(payout.payout_value || 0);
-    }, 0);
+    const redeemStats = transactionsLoaded
+      ? getCustomerRedeemStatsFromTransactions(customerId)
+      : getCustomerRedeemStatsFromPayouts(customerId);
 
     return {
       timesBought: uniqueEntryIds.size,
       totalItemsBought,
       totalRewardPoints,
-      totalRedeemed,
-      totalPayoutValue,
-      payoutCount: customerPayouts.length,
+      totalRedeemed: redeemStats.totalRedeemed,
+      totalPayoutValue: redeemStats.totalPayoutValue,
+      payoutCount: redeemStats.payoutCount,
     };
   };
 
@@ -300,7 +437,17 @@ function RedemptionPortal({ onBack }) {
     });
 
     return list;
-  }, [customers, searchTerm, balanceFilter, sortBy, rewardEntries, payouts]);
+  }, [
+    customers,
+    searchTerm,
+    balanceFilter,
+    sortBy,
+    rewardEntries,
+    payouts,
+    transactions,
+    transactionsLoaded,
+    pointValue,
+  ]);
 
   const pageCount = Math.max(
     1,
@@ -327,13 +474,28 @@ function RedemptionPortal({ onBack }) {
       return sum + Number(customer.points_balance || 0);
     }, 0);
 
-    const totalRedeemedPoints = payouts.reduce((sum, payout) => {
-      return sum + Number(payout.points_redeemed || 0);
-    }, 0);
+    let totalRedeemedPoints = 0;
+    let totalPayoutValue = 0;
 
-    const totalPayoutValue = payouts.reduce((sum, payout) => {
-      return sum + Number(payout.payout_value || 0);
-    }, 0);
+    if (transactionsLoaded) {
+      const redeemedTransactions = transactions.filter(isRedeemedTransaction);
+
+      totalRedeemedPoints = redeemedTransactions.reduce((sum, transaction) => {
+        return sum + Math.abs(getTransactionPoints(transaction));
+      }, 0);
+
+      totalPayoutValue = redeemedTransactions.reduce((sum, transaction) => {
+        return sum + getTransactionAmount(transaction);
+      }, 0);
+    } else {
+      totalRedeemedPoints = payouts.reduce((sum, payout) => {
+        return sum + getPayoutPoints(payout);
+      }, 0);
+
+      totalPayoutValue = payouts.reduce((sum, payout) => {
+        return sum + getPayoutAmount(payout);
+      }, 0);
+    }
 
     return {
       totalCustomers: customers.length,
@@ -341,7 +503,7 @@ function RedemptionPortal({ onBack }) {
       totalRedeemedPoints,
       totalPayoutValue,
     };
-  }, [customers, payouts]);
+  }, [customers, payouts, transactions, transactionsLoaded, pointValue]);
 
   const openCustomerDetails = (customer) => {
     setSelectedCustomer(customer);

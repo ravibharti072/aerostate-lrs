@@ -307,13 +307,43 @@ function TransactionHistory({ onBack }) {
           unit: getTxnUnit(txn),
           quantity: txn.quantity,
           points_per_unit: txn.points_per_unit,
-          total_points: txn.points || txn.total_points || 0,
+          total_points: txn.points ?? txn.total_points ?? 0,
           created_at: txn.created_at,
         },
       ];
     }
 
     return [];
+  };
+
+  const getItemTotalPoints = (item) => {
+    const quantity = Number(item?.quantity || 0);
+    const pointsPerUnit = Number(item?.points_per_unit || 0);
+
+    if (
+      Number.isFinite(quantity) &&
+      Number.isFinite(pointsPerUnit) &&
+      quantity > 0 &&
+      pointsPerUnit > 0
+    ) {
+      return roundToTwo(quantity * pointsPerUnit);
+    }
+
+    return roundToTwo(item?.total_points ?? item?.points ?? 0);
+  };
+
+  const getGroupedTransactionTotalPoints = (txn) => {
+    const groupedItems = getGroupedItems(txn);
+
+    if (isGroupedRewardTxn(txn) && groupedItems.length > 0) {
+      return roundToTwo(
+        groupedItems.reduce((sum, item) => {
+          return sum + getItemTotalPoints(item);
+        }, 0)
+      );
+    }
+
+    return roundToTwo(txn?.points ?? txn?.total_points ?? 0);
   };
 
   const getItemPreviewNames = (txn) => {
@@ -329,28 +359,33 @@ function TransactionHistory({ onBack }) {
   const getTotalItems = (txn) =>
     Number(txn.item_count || getGroupedItems(txn).length || 0);
 
-  const getTxnPoints = (txn) => Number(txn.points || txn.total_points || 0);
+  const getTxnPoints = (txn) => getGroupedTransactionTotalPoints(txn);
 
-  const buildItemTxnFromGroupedItem = (groupTxn, item) => ({
-    ...item,
-    id: item.transaction_id || item.point_transaction_id || item.id,
-    transaction_id: item.transaction_id || item.point_transaction_id || "",
-    point_transaction_id: item.point_transaction_id || item.transaction_id || "",
-    reward_entry_id: getRewardEntryId(groupTxn),
-    reward_entry_item_id: item.reward_entry_item_id || item.id,
-    customer_id: groupTxn.customer_id,
-    customer_name: getCustomerName(groupTxn),
-    phone_number: getCustomerPhone(groupTxn),
-    type: "POINTS_CREDIT",
-    transaction_type: "EARN",
-    points: Number(item.total_points || 0),
-    total_points: Number(item.total_points || 0),
-    unit: item.unit,
-    quantity: item.quantity,
-    points_per_unit: item.points_per_unit,
-    created_at: item.created_at || groupTxn.created_at,
-    note: groupTxn.note || item.note || "",
-  });
+  const buildItemTxnFromGroupedItem = (groupTxn, item) => {
+    const itemTotalPoints = getItemTotalPoints(item);
+
+    return {
+      ...item,
+      id: item.transaction_id || item.point_transaction_id || item.id,
+      transaction_id: item.transaction_id || item.point_transaction_id || "",
+      point_transaction_id:
+        item.point_transaction_id || item.transaction_id || "",
+      reward_entry_id: getRewardEntryId(groupTxn),
+      reward_entry_item_id: item.reward_entry_item_id || item.id,
+      customer_id: groupTxn.customer_id,
+      customer_name: getCustomerName(groupTxn),
+      phone_number: getCustomerPhone(groupTxn),
+      type: "POINTS_CREDIT",
+      transaction_type: "EARN",
+      points: itemTotalPoints,
+      total_points: itemTotalPoints,
+      unit: item.unit,
+      quantity: item.quantity,
+      points_per_unit: item.points_per_unit,
+      created_at: item.created_at || groupTxn.created_at,
+      note: groupTxn.note || item.note || "",
+    };
+  };
 
   const fetchData = async () => {
     try {
@@ -386,7 +421,10 @@ function TransactionHistory({ onBack }) {
         is_grouped_reward: true,
         type: "POINTS_CREDIT",
         transaction_type: "EARN",
-        points: Number(entry.total_points || entry.points || 0),
+        points: getGroupedTransactionTotalPoints({
+          ...entry,
+          is_grouped_reward: true,
+        }),
       }));
 
       const otherTransactions = rawTransactions.filter((txn) => {
@@ -1120,7 +1158,7 @@ function TransactionHistory({ onBack }) {
                         </div>
 
                         <strong className="ast-detail-item-points">
-                          {formatPoints(item.total_points || 0)} pts
+                          {formatPoints(getItemTotalPoints(item))} pts
                         </strong>
 
                         {itemTxn.reward_entry_item_id && (

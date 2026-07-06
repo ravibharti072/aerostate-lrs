@@ -131,18 +131,83 @@ const normalizeList = (data) => {
   if (Array.isArray(data?.transactions)) return data.transactions;
   if (Array.isArray(data?.payouts)) return data.payouts;
   if (Array.isArray(data?.logs)) return data.logs;
+  if (Array.isArray(data?.records)) return data.records;
+  if (Array.isArray(data?.entries)) return data.entries;
   if (Array.isArray(data?.data)) return data.data;
   return [];
 };
 
-const formatNumber = (value) => {
+const toNumber = (value) => {
   const numberValue = Number(value || 0);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+};
 
-  if (!Number.isFinite(numberValue)) return "0";
+const formatNumber = (value) => {
+  const numberValue = toNumber(value);
 
   return numberValue.toLocaleString("en-IN", {
     maximumFractionDigits: 2,
   });
+};
+
+const normalizeTransactionType = (transaction) => {
+  return String(
+    transaction?.transaction_type ||
+      transaction?.type ||
+      transaction?.entry_type ||
+      transaction?.status ||
+      ""
+  )
+    .trim()
+    .toUpperCase();
+};
+
+const getTransactionPointValue = (transaction) => {
+  return toNumber(
+    transaction?.points ??
+      transaction?.total_points ??
+      transaction?.points_redeemed ??
+      transaction?.redeemed_points ??
+      transaction?.redeem_points ??
+      0
+  );
+};
+
+const isRedeemedTransaction = (transaction) => {
+  const type = normalizeTransactionType(transaction);
+  const points = getTransactionPointValue(transaction);
+
+  if (points < 0) return true;
+
+  return (
+    type === "POINTS_DEBIT" ||
+    type === "DEBIT" ||
+    type === "REDEEM" ||
+    type === "REDEEMED" ||
+    type === "USED" ||
+    type === "MANUAL_DEDUCT" ||
+    type === "PAYOUT" ||
+    type.includes("REDEEM") ||
+    type.includes("DEBIT") ||
+    type.includes("USED")
+  );
+};
+
+const getRedeemedPointsFromTransaction = (transaction) => {
+  return Math.abs(getTransactionPointValue(transaction));
+};
+
+const getRedeemedPointsFromPayout = (payout) => {
+  return Math.abs(
+    toNumber(
+      payout?.points_redeemed ??
+        payout?.pointsRedeemed ??
+        payout?.redeem_points ??
+        payout?.redeemed_points ??
+        payout?.points ??
+        0
+    )
+  );
 };
 
 const moduleCards = [
@@ -337,11 +402,13 @@ const Dashboard = () => {
 
   const loadDashboardData = useCallback(async () => {
     try {
-      const [customersRes, itemsRes, payoutsRes] = await Promise.allSettled([
-        api.get("/customers/"),
-        api.get("/loyalty/items"),
-        api.get("/payouts"),
-      ]);
+      const [customersRes, itemsRes, payoutsRes, transactionsRes] =
+        await Promise.allSettled([
+          api.get("/customers/"),
+          api.get("/loyalty/items"),
+          api.get("/payouts"),
+          api.get("/transactions/"),
+        ]);
 
       const customers =
         customersRes.status === "fulfilled"
@@ -349,40 +416,45 @@ const Dashboard = () => {
           : [];
 
       const items =
-        itemsRes.status === "fulfilled"
-          ? normalizeList(itemsRes.value.data)
-          : [];
+        itemsRes.status === "fulfilled" ? normalizeList(itemsRes.value.data) : [];
 
       const payouts =
         payoutsRes.status === "fulfilled"
           ? normalizeList(payoutsRes.value.data)
           : [];
 
-      const totalPoints = customers.reduce(
-        (sum, customer) =>
+      const transactions =
+        transactionsRes.status === "fulfilled"
+          ? normalizeList(transactionsRes.value.data)
+          : [];
+
+      const totalPoints = customers.reduce((sum, customer) => {
+        return (
           sum +
-          Number(
+          toNumber(
             customer.points_balance ??
               customer.point_balance ??
               customer.available_points ??
               customer.availablePoints ??
               0
-          ),
-        0
-      );
+          )
+        );
+      }, 0);
 
-      const totalPayouts = payouts.reduce(
-        (sum, payout) =>
-          sum +
-          Number(
-            payout.points_redeemed ??
-              payout.pointsRedeemed ??
-              payout.redeem_points ??
-              payout.redeemed_points ??
-              0
-          ),
-        0
-      );
+      const totalRedeemedFromTransactions = transactions
+        .filter(isRedeemedTransaction)
+        .reduce((sum, transaction) => {
+          return sum + getRedeemedPointsFromTransaction(transaction);
+        }, 0);
+
+      const totalRedeemedFromPayouts = payouts.reduce((sum, payout) => {
+        return sum + getRedeemedPointsFromPayout(payout);
+      }, 0);
+
+      const totalPayouts =
+        transactionsRes.status === "fulfilled"
+          ? totalRedeemedFromTransactions
+          : totalRedeemedFromPayouts;
 
       setStats({
         totalCustomers: customers.length,
@@ -404,7 +476,24 @@ const Dashboard = () => {
       loadDashboardData();
     }, 30000);
 
-    return () => clearInterval(autoRefresh);
+    const handleWindowFocus = () => {
+      loadDashboardData();
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadDashboardData();
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(autoRefresh);
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [activeModule, loadDashboardData]);
 
   const goBackToMenu = () => {

@@ -91,23 +91,30 @@ const sidebarCss = `
   }
 
   .lrs-sidebar-logo-mark {
-    width: 44px;
-    height: 44px;
-    border-radius: 14px;
-    background: linear-gradient(135deg, #eff6ff, #ecfdf5);
-    border: 1px solid #dbeafe;
-    display: grid;
-    place-items: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 18px;
+    background: #ffffff;
+    border: 1px solid #bfdbfe;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex: 0 0 auto;
     overflow: hidden;
-    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.12);
+    padding: 0;
+    box-shadow:
+      0 12px 24px rgba(37, 99, 235, 0.14),
+      0 0 0 5px rgba(239, 246, 255, 0.95);
   }
 
   .lrs-sidebar-logo-img {
-    width: 34px;
-    height: 34px;
-    object-fit: contain;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
     display: block;
+    border-radius: inherit;
+    transform: scale(1.04);
   }
 
   .lrs-sidebar-brand-text {
@@ -423,6 +430,12 @@ const sidebarCss = `
 
     .lrs-sidebar-header {
       padding: 16px 14px;
+    }
+
+    .lrs-sidebar-logo-mark {
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
     }
 
     .lrs-sidebar-app-name {

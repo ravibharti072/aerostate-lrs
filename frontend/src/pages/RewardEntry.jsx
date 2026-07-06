@@ -122,6 +122,46 @@ const getCustomerName = (customer) =>
 const getCustomerPhone = (customer) =>
   customer?.phone_number || customer?.phone || customer?.mobile || "-";
 
+const getCustomerLabel = (customer) =>
+  `${getCustomerName(customer)} - ${getCustomerPhone(customer)}`;
+
+const sanitizeDecimalInput = (value) => {
+  const cleanValue = String(value || "")
+    .replace(",", ".")
+    .replace(/[^0-9.]/g, "");
+
+  const parts = cleanValue.split(".");
+
+  if (parts.length <= 1) {
+    return parts[0];
+  }
+
+  return `${parts[0]}.${parts.slice(1).join("")}`;
+};
+
+const HighlightText = ({ text, search }) => {
+  const value = String(text || "");
+  const query = String(search || "").trim();
+
+  if (!query) return value;
+
+  const lowerValue = value.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const matchIndex = lowerValue.indexOf(lowerQuery);
+
+  if (matchIndex === -1) return value;
+
+  return (
+    <>
+      {value.slice(0, matchIndex)}
+      <mark className="asr-search-highlight">
+        {value.slice(matchIndex, matchIndex + query.length)}
+      </mark>
+      {value.slice(matchIndex + query.length)}
+    </>
+  );
+};
+
 const getEntryCustomer = (entry) =>
   entry?.customer_name || entry?.customer_id || "-";
 
@@ -197,6 +237,8 @@ export default function RewardEntry({ onBack }) {
   const [entries, setEntries] = useState([]);
 
   const [customerId, setCustomerId] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
   const [entryDate, setEntryDate] = useState("");
   const [itemRows, setItemRows] = useState([{ ...emptyItemRow }]);
   const [note, setNote] = useState("");
@@ -239,6 +281,49 @@ export default function RewardEntry({ onBack }) {
     );
   }, [customers, customerId]);
 
+  const sortedCustomers = useMemo(() => {
+    return [...customers].sort((a, b) =>
+      getCustomerName(a).localeCompare(getCustomerName(b), "en", {
+        sensitivity: "base",
+        numeric: true,
+      })
+    );
+  }, [customers]);
+
+  const filteredCustomers = useMemo(() => {
+    const query = customerSearch.trim().toLowerCase().replace(/-/g, " ");
+
+    if (!query) {
+      return sortedCustomers.slice(0, 25);
+    }
+
+    const queryWords = query.split(/\s+/).filter(Boolean);
+
+    return sortedCustomers
+      .filter((customer) => {
+        const searchText = `${getCustomerName(customer)} ${getCustomerPhone(
+          customer
+        )}`
+          .toLowerCase()
+          .replace(/-/g, " ");
+
+        return queryWords.every((word) => searchText.includes(word));
+      })
+      .slice(0, 25);
+  }, [customerSearch, sortedCustomers]);
+
+  const handleCustomerSearchChange = (value) => {
+    setCustomerSearch(value);
+    setCustomerId("");
+    setCustomerDropdownOpen(true);
+  };
+
+  const handleCustomerSelect = (customer) => {
+    setCustomerId(String(customer.id));
+    setCustomerSearch(getCustomerLabel(customer));
+    setCustomerDropdownOpen(false);
+  };
+
   const getSelectedItem = (itemId) => {
     return items.find((item) => Number(item.id) === Number(itemId));
   };
@@ -258,7 +343,8 @@ export default function RewardEntry({ onBack }) {
       const pointsPerUnit = selectedItem ? getItemPoints(selectedItem) : 0;
       const itemUnit = selectedItem ? getItemUnit(selectedItem) : "";
       const finalUnit = row.unit || itemUnit;
-      const quantity = row.quantity === "" ? 0 : Number(row.quantity || 0);
+      const rawQuantity = row.quantity === "" ? 0 : Number(row.quantity || 0);
+      const quantity = Number.isFinite(rawQuantity) ? rawQuantity : 0;
 
       const totalPoints =
         pointsPerUnit > 0 && quantity > 0
@@ -294,8 +380,9 @@ export default function RewardEntry({ onBack }) {
     const pointsPerUnit = selectedAddItem ? getItemPoints(selectedAddItem) : 0;
     const itemUnit = selectedAddItem ? getItemUnit(selectedAddItem) : "";
     const finalUnit = addItemForm.unit || itemUnit;
-    const quantity =
+    const rawQuantity =
       addItemForm.quantity === "" ? 0 : Number(addItemForm.quantity || 0);
+    const quantity = Number.isFinite(rawQuantity) ? rawQuantity : 0;
 
     const totalPoints =
       pointsPerUnit > 0 && quantity > 0
@@ -417,6 +504,8 @@ export default function RewardEntry({ onBack }) {
 
   const resetForm = () => {
     setCustomerId("");
+    setCustomerSearch("");
+    setCustomerDropdownOpen(false);
     setEntryDate("");
     setItemRows([{ ...emptyItemRow }]);
     setNote("");
@@ -430,6 +519,7 @@ export default function RewardEntry({ onBack }) {
 
     for (let index = 0; index < calculatedRows.length; index++) {
       const row = calculatedRows[index];
+      const quantityValue = Number(row.quantity);
 
       if (!row.loyalty_item_id) {
         showToast(`Please select item in row ${index + 1}.`, "error");
@@ -446,7 +536,7 @@ export default function RewardEntry({ onBack }) {
         return false;
       }
 
-      if (!row.quantity || Number(row.quantity) <= 0) {
+      if (!Number.isFinite(quantityValue) || quantityValue <= 0) {
         showToast(
           `Quantity must be greater than 0 in row ${index + 1}.`,
           "error"
@@ -677,6 +767,8 @@ export default function RewardEntry({ onBack }) {
   };
 
   const validateAddItemForm = () => {
+    const quantityValue = Number(addItemForm.quantity);
+
     if (!addItemEntry) {
       showToast("Please select a reward transaction.", "error");
       return false;
@@ -692,7 +784,7 @@ export default function RewardEntry({ onBack }) {
       return false;
     }
 
-    if (!addItemForm.quantity || Number(addItemForm.quantity) <= 0) {
+    if (!Number.isFinite(quantityValue) || quantityValue <= 0) {
       showToast("Quantity must be greater than 0.", "error");
       return false;
     }
@@ -897,23 +989,70 @@ export default function RewardEntry({ onBack }) {
               <div className="asr-top-form-grid">
                 <div className="asr-inner-card">
                   <div className="asr-form-group">
-                    <label className="asr-label">Customer *</label>
+                    <label className="asr-label">Search Customer *</label>
 
-                    <select
-                      className="asr-input"
-                      value={customerId}
-                      onChange={(event) => setCustomerId(event.target.value)}
-                      disabled={saving || loading}
+                    <div
+                      className="asr-customer-search-wrap"
+                      onBlur={() => {
+                        setTimeout(() => setCustomerDropdownOpen(false), 150);
+                      }}
                     >
-                      <option value="">Select customer</option>
+                      <input
+                        className="asr-input"
+                        type="text"
+                        value={customerSearch}
+                        onChange={(event) =>
+                          handleCustomerSearchChange(event.target.value)
+                        }
+                        onFocus={() => setCustomerDropdownOpen(true)}
+                        placeholder="Search customer by name or phone"
+                        disabled={saving || loading}
+                        autoComplete="off"
+                      />
 
-                      {customers.map((customer) => (
-                        <option key={customer.id} value={customer.id}>
-                          {getCustomerName(customer)} -{" "}
-                          {getCustomerPhone(customer)}
-                        </option>
-                      ))}
-                    </select>
+                      {customerDropdownOpen && (
+                        <div className="asr-customer-results">
+                          {filteredCustomers.length === 0 ? (
+                            <div className="asr-customer-empty">
+                              No customer found.
+                            </div>
+                          ) : (
+                            filteredCustomers.map((customer) => {
+                              const isActive =
+                                Number(customer.id) === Number(customerId);
+
+                              return (
+                                <button
+                                  key={customer.id}
+                                  type="button"
+                                  className={`asr-customer-option ${
+                                    isActive ? "active" : ""
+                                  }`}
+                                  onMouseDown={(event) =>
+                                    event.preventDefault()
+                                  }
+                                  onClick={() => handleCustomerSelect(customer)}
+                                >
+                                  <span className="asr-customer-option-name">
+                                    <HighlightText
+                                      text={getCustomerName(customer)}
+                                      search={customerSearch}
+                                    />
+                                  </span>
+
+                                  <span className="asr-customer-option-phone">
+                                    <HighlightText
+                                      text={getCustomerPhone(customer)}
+                                      search={customerSearch}
+                                    />
+                                  </span>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="asr-selected-box">
@@ -1020,19 +1159,18 @@ export default function RewardEntry({ onBack }) {
                         <label className="asr-label">Quantity *</label>
 
                         <input
-                          className="asr-input"
-                          type="number"
+                          className="asr-input asr-quantity-input"
+                          type="text"
+                          inputMode="decimal"
                           value={row.quantity}
                           onChange={(event) =>
                             handleItemRowChange(
                               index,
                               "quantity",
-                              event.target.value
+                              sanitizeDecimalInput(event.target.value)
                             )
                           }
                           placeholder="Enter quantity"
-                          min="0"
-                          step="0.01"
                           disabled={saving}
                         />
                       </div>
@@ -1549,15 +1687,17 @@ export default function RewardEntry({ onBack }) {
                     <label className="asr-label">Quantity *</label>
 
                     <input
-                      className="asr-input"
-                      type="number"
+                      className="asr-input asr-quantity-input"
+                      type="text"
+                      inputMode="decimal"
                       value={addItemForm.quantity}
                       onChange={(event) =>
-                        handleAddItemFormChange("quantity", event.target.value)
+                        handleAddItemFormChange(
+                          "quantity",
+                          sanitizeDecimalInput(event.target.value)
+                        )
                       }
                       placeholder="Enter quantity"
-                      min="0"
-                      step="0.01"
                       disabled={addingItem}
                     />
                   </div>
@@ -1947,6 +2087,88 @@ const rewardEntryCss = `
   .asr-input:focus,
   .asr-textarea:focus {
     border-color: #2563eb;
+  }
+
+  .asr-customer-search-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  .asr-customer-results {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    z-index: 50;
+    max-height: 260px;
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid #bfdbfe;
+    border-radius: 14px;
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+    padding: 8px;
+  }
+
+  .asr-customer-option {
+    width: 100%;
+    border: none;
+    background: #ffffff;
+    color: #0f172a;
+    border-radius: 11px;
+    padding: 11px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: left;
+  }
+
+  .asr-customer-option:hover,
+  .asr-customer-option.active {
+    background: #eff6ff;
+  }
+
+  .asr-customer-option-name {
+    font-size: 14px;
+    font-weight: 950;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .asr-customer-option-phone {
+    font-size: 13px;
+    font-weight: 850;
+    color: #64748b;
+    white-space: nowrap;
+  }
+
+  .asr-search-highlight {
+    background: #fef08a;
+    color: #0f172a;
+    padding: 0 2px;
+    border-radius: 4px;
+  }
+
+  .asr-customer-empty {
+    padding: 14px;
+    text-align: center;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 850;
+  }
+
+  .asr-quantity-input::-webkit-outer-spin-button,
+  .asr-quantity-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .asr-quantity-input {
+    -moz-appearance: textfield;
+    appearance: textfield;
   }
 
   .asr-selected-box {
@@ -2704,6 +2926,16 @@ const rewardEntryCss = `
     .asr-add-modal-grid,
     .asr-quick-item-grid {
       grid-template-columns: 1fr;
+    }
+
+    .asr-customer-option {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .asr-customer-option-phone {
+      white-space: normal;
     }
 
     .asr-detail-item-card {

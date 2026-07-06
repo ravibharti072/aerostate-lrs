@@ -101,6 +101,20 @@ function RedemptionPortal({ onBack }) {
     return Number.isFinite(number) ? number : 0;
   };
 
+  const sanitizeDecimalInput = (value) => {
+    const cleanValue = String(value || "")
+      .replace(",", ".")
+      .replace(/[^0-9.]/g, "");
+
+    const parts = cleanValue.split(".");
+
+    if (parts.length <= 1) {
+      return parts[0];
+    }
+
+    return `${parts[0]}.${parts.slice(1).join("")}`;
+  };
+
   const formatAmount = (value) => {
     return Number(value || 0).toLocaleString("en-IN", {
       minimumFractionDigits: 2,
@@ -546,7 +560,9 @@ function RedemptionPortal({ onBack }) {
     const { name, value } = event.target;
 
     if (name === "points_redeemed") {
-      if (value === "") {
+      const sanitizedValue = sanitizeDecimalInput(value);
+
+      if (sanitizedValue === "") {
         setPayoutForm((prev) => ({
           ...prev,
           points_redeemed: "",
@@ -554,8 +570,16 @@ function RedemptionPortal({ onBack }) {
         return;
       }
 
-      const enteredPoints = Number(value);
+      const enteredPoints = Number(sanitizedValue);
       const maxPoints = Number(selectedCustomer?.points_balance || 0);
+
+      if (!Number.isFinite(enteredPoints)) {
+        setPayoutForm((prev) => ({
+          ...prev,
+          points_redeemed: "",
+        }));
+        return;
+      }
 
       if (enteredPoints > maxPoints) {
         showToast(
@@ -573,13 +597,12 @@ function RedemptionPortal({ onBack }) {
         return;
       }
 
-      if (enteredPoints < 0) {
-        setPayoutForm((prev) => ({
-          ...prev,
-          points_redeemed: "",
-        }));
-        return;
-      }
+      setPayoutForm((prev) => ({
+        ...prev,
+        points_redeemed: sanitizedValue,
+      }));
+
+      return;
     }
 
     setPayoutForm((prev) => ({
@@ -1071,13 +1094,13 @@ function RedemptionPortal({ onBack }) {
                   <label>Redeem Points</label>
 
                   <input
-                    type="number"
+                    className="asrp-number-input"
+                    type="text"
+                    inputMode="decimal"
                     name="points_redeemed"
                     value={payoutForm.points_redeemed}
                     onChange={handlePayoutChange}
-                    min="1"
-                    max={availablePoints}
-                    step="0.01"
+                    placeholder="Enter redeem points"
                     required
                   />
 
@@ -1943,6 +1966,17 @@ const redemptionCss = `
   .asrp-form-group input:focus,
   .asrp-form-group textarea:focus {
     border-color: #2563eb;
+  }
+
+  .asrp-number-input::-webkit-outer-spin-button,
+  .asrp-number-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .asrp-number-input {
+    -moz-appearance: textfield;
+    appearance: textfield;
   }
 
   .asrp-input-help {

@@ -85,6 +85,20 @@ const formatPoints = (value) => {
     : numberValue.toFixed(2).replace(/\.?0+$/, "");
 };
 
+const sanitizeDecimalInput = (value) => {
+  const cleanValue = String(value || "")
+    .replace(",", ".")
+    .replace(/[^0-9.]/g, "");
+
+  const parts = cleanValue.split(".");
+
+  if (parts.length <= 1) {
+    return parts[0];
+  }
+
+  return `${parts[0]}.${parts.slice(1).join("")}`;
+};
+
 function TransactionHistory({ onBack }) {
   const [transactions, setTransactions] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -604,7 +618,7 @@ function TransactionHistory({ onBack }) {
 
     setEditForm((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: name === "quantity" ? sanitizeDecimalInput(value) : value,
     }));
   };
 
@@ -646,7 +660,9 @@ function TransactionHistory({ onBack }) {
       return;
     }
 
-    if (!editForm.quantity || Number(editForm.quantity) <= 0) {
+    const quantityValue = Number(editForm.quantity);
+
+    if (!Number.isFinite(quantityValue) || quantityValue <= 0) {
       showToast("error", "Quantity must be greater than 0.");
       return;
     }
@@ -659,7 +675,7 @@ function TransactionHistory({ onBack }) {
         {
           loyalty_item_id: Number(editForm.loyalty_item_id),
           unit: autoUnit,
-          quantity: Number(editForm.quantity),
+          quantity: quantityValue,
           entry_date: editForm.entry_date
             ? `${editForm.entry_date}T12:00:00`
             : null,
@@ -1282,12 +1298,13 @@ function TransactionHistory({ onBack }) {
                     <label>Quantity</label>
 
                     <input
-                      type="number"
+                      className="ast-number-input"
+                      type="text"
+                      inputMode="decimal"
                       name="quantity"
                       value={editForm.quantity}
                       onChange={handleEditChange}
-                      min="0.01"
-                      step="0.01"
+                      placeholder="Enter quantity"
                       required
                     />
                   </div>
@@ -2202,6 +2219,17 @@ const transactionHistoryCss = `
   .ast-form-group select:focus,
   .ast-form-group textarea:focus {
     border-color: #2563eb;
+  }
+
+  .ast-number-input::-webkit-outer-spin-button,
+  .ast-number-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .ast-number-input {
+    -moz-appearance: textfield;
+    appearance: textfield;
   }
 
   .ast-password-box {

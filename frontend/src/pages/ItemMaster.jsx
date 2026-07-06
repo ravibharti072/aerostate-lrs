@@ -95,6 +95,20 @@ const formatPoints = (value) => {
     : numberValue.toFixed(2).replace(/\.?0+$/, "");
 };
 
+const sanitizeDecimalInput = (value) => {
+  const cleanValue = String(value || "")
+    .replace(",", ".")
+    .replace(/[^0-9.]/g, "");
+
+  const parts = cleanValue.split(".");
+
+  if (parts.length <= 1) {
+    return parts[0];
+  }
+
+  return `${parts[0]}.${parts.slice(1).join("")}`;
+};
+
 export default function ItemMaster({ onBack }) {
   const [items, setItems] = useState([]);
   const [formData, setFormData] = useState(emptyForm);
@@ -269,7 +283,7 @@ export default function ItemMaster({ onBack }) {
 
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: name === "points" ? sanitizeDecimalInput(value) : value,
     }));
   };
 
@@ -292,7 +306,7 @@ export default function ItemMaster({ onBack }) {
       name: getItemName(item),
       sku: item?.sku || "",
       unit: getItemUnit(item),
-      points: getItemPoints(item),
+      points: String(getItemPoints(item) || ""),
     });
 
     setShowModal(true);
@@ -771,13 +785,13 @@ export default function ItemMaster({ onBack }) {
                     <label>Points *</label>
 
                     <input
-                      type="number"
+                      className="asi-number-input"
+                      type="text"
+                      inputMode="decimal"
                       name="points"
                       value={formData.points}
                       onChange={handleChange}
                       placeholder="Enter points"
-                      min="0.01"
-                      step="0.01"
                       disabled={saving}
                     />
                   </div>
@@ -1498,6 +1512,17 @@ const itemMasterCss = `
   .asi-form-group input:focus,
   .asi-form-group select:focus {
     border-color: #2563eb;
+  }
+
+  .asi-number-input::-webkit-outer-spin-button,
+  .asi-number-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .asi-number-input {
+    -moz-appearance: textfield;
+    appearance: textfield;
   }
 
   .asi-info-box {

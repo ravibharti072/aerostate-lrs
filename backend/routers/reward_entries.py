@@ -1,3 +1,4 @@
+import os
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,6 +21,19 @@ from services.loyalty_item_service import get_loyalty_item_or_404
 router = APIRouter(tags=["Reward Entries"])
 
 
+def _env_true(value: Optional[str]) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def whatsapp_auto_reward_enabled() -> bool:
+    return _env_true(
+        os.getenv(
+            "WHATSAPP_AUTO_SEND_REWARD",
+            os.getenv("WHATSAPP_AUTO_SEND", "false"),
+        )
+    )
+
+
 def round_points(value) -> float:
     return round(float(value or 0), 2)
 
@@ -34,6 +48,82 @@ def get_final_unit(input_unit, loyalty_item) -> str:
         or getattr(loyalty_item, "unit", None)
         or "pcs"
     )
+
+
+def try_auto_send_reward_whatsapp(
+    *,
+    reward_entry_id: int,
+    db: Session,
+    current_user: dict,
+) -> dict:
+    if not whatsapp_auto_reward_enabled():
+        return {
+            "enabled": False,
+            "attempted": False,
+            "success": False,
+            "status": "disabled",
+            "message": "Auto WhatsApp reward sending is disabled.",
+            "log_id": None,
+            "message_cost": 0.0,
+            "cost_currency": "INR",
+            "billing_status": "disabled",
+            "error_message": None,
+        }
+
+    try:
+        from routers.messages import send_reward_entry_whatsapp_core
+
+        response = send_reward_entry_whatsapp_core(
+            reward_entry_id=reward_entry_id,
+            allow_resend=False,
+            db=db,
+            current_user=current_user,
+        )
+
+        return {
+            "enabled": True,
+            "attempted": True,
+            "success": bool(response.success),
+            "status": response.status,
+            "message": (
+                "Reward WhatsApp message sent automatically."
+                if response.success
+                else "Reward WhatsApp auto-send failed."
+            ),
+            "log_id": response.log_id,
+            "message_cost": float(response.message_cost or 0),
+            "cost_currency": response.cost_currency or "INR",
+            "billing_status": response.billing_status or "estimated",
+            "error_message": response.error_message,
+        }
+
+    except HTTPException as exc:
+        return {
+            "enabled": True,
+            "attempted": True,
+            "success": False,
+            "status": "failed",
+            "message": "Reward WhatsApp auto-send failed.",
+            "log_id": None,
+            "message_cost": 0.0,
+            "cost_currency": "INR",
+            "billing_status": "not_billable_failed",
+            "error_message": str(exc.detail),
+        }
+
+    except Exception as exc:
+        return {
+            "enabled": True,
+            "attempted": True,
+            "success": False,
+            "status": "failed",
+            "message": "Reward WhatsApp auto-send failed.",
+            "log_id": None,
+            "message_cost": 0.0,
+            "cost_currency": "INR",
+            "billing_status": "not_billable_failed",
+            "error_message": str(exc),
+        }
 
 
 # ------------------------------------------------------------------
@@ -185,12 +275,20 @@ def create_bulk_reward_entry(
         })
 
     new_reward_entry.total_points = round_points(calculated_total_points)
+
     customer.points_balance = round_points(
         float(customer.points_balance or 0) + calculated_total_points
     )
 
     db.commit()
     db.refresh(new_reward_entry)
+    db.refresh(customer)
+
+    whatsapp_result = try_auto_send_reward_whatsapp(
+        reward_entry_id=new_reward_entry.id,
+        db=db,
+        current_user=current_user,
+    )
 
     return {
         "message": "Reward entry saved successfully",
@@ -203,6 +301,7 @@ def create_bulk_reward_entry(
         "new_points_balance": customer.points_balance,
         "created_at": new_reward_entry.created_at,
         "items": created_items,
+        "whatsapp": whatsapp_result,
     }
 
 
@@ -333,6 +432,8 @@ def add_item_to_reward_entry(
 
     db.commit()
     db.refresh(reward_entry_item)
+    db.refresh(reward_entry)
+    db.refresh(customer)
 
     return {
         "message": "Item added to existing reward entry successfully",

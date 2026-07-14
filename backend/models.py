@@ -323,6 +323,13 @@ class WhatsAppMessageLog(Base):
     # Customer total balance after transaction
     total_points = Column(Float, nullable=False, default=0.0)
 
+    # WhatsApp message cost tracking.
+    # For now this is estimated cost based on configured provider rate.
+    # Example: 0.11 means ₹0.11 / 11 paisa per message.
+    message_cost = Column(Float, nullable=False, default=0.11)
+    cost_currency = Column(String, nullable=False, default="INR")
+    billing_status = Column(String, nullable=False, default="estimated")
+
     # pending, sent, delivered, read, failed
     status = Column(String, nullable=False, default="pending")
 

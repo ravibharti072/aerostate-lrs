@@ -689,6 +689,12 @@ class WhatsAppRewardSendResponse(BaseModel):
     payout_value: Optional[float] = None
     total_points: float
 
+    # WhatsApp cost tracking.
+    # Example: message_cost 0.11 means ₹0.11 / 11 paisa.
+    message_cost: Optional[float] = 0.0
+    cost_currency: Optional[str] = "INR"
+    billing_status: Optional[str] = "estimated"
+
     status: str
     message_preview: Optional[str] = None
 
@@ -717,6 +723,12 @@ class WhatsAppRedemptionSendResponse(BaseModel):
     redeemed_points: float
     payout_value: Optional[float] = None
     total_points: float
+
+    # WhatsApp cost tracking.
+    # Example: message_cost 0.11 means ₹0.11 / 11 paisa.
+    message_cost: Optional[float] = 0.0
+    cost_currency: Optional[str] = "INR"
+    billing_status: Optional[str] = "estimated"
 
     status: str
     message_preview: Optional[str] = None
@@ -759,6 +771,12 @@ class WhatsAppMessageLogResponse(BaseModel):
     payout_value: Optional[float] = None
     total_points: float = 0.0
 
+    # WhatsApp cost tracking.
+    # Backend should count cost mainly for sent/delivered/read messages.
+    message_cost: Optional[float] = 0.0
+    cost_currency: Optional[str] = "INR"
+    billing_status: Optional[str] = "estimated"
+
     # pending, sent, delivered, read, failed
     status: str
 
@@ -775,3 +793,27 @@ class WhatsAppMessageLogResponse(BaseModel):
 class WhatsAppMessageLogListResponse(BaseModel):
     total: int
     logs: List[WhatsAppMessageLogResponse] = Field(default_factory=list)
+
+
+class WhatsAppSpendSummaryResponse(BaseModel):
+    total_logs: int = 0
+
+    total_messages: int = 0
+    sent_messages: int = 0
+    delivered_messages: int = 0
+    read_messages: int = 0
+    failed_messages: int = 0
+    pending_messages: int = 0
+
+    reward_messages: int = 0
+    redemption_messages: int = 0
+
+    billable_messages: int = 0
+
+    total_estimated_spend: float = 0.0
+    reward_estimated_spend: float = 0.0
+    redemption_estimated_spend: float = 0.0
+
+    cost_per_message: float = 0.11
+    cost_currency: str = "INR"
+    billing_status: str = "estimated"

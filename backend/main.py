@@ -292,6 +292,10 @@ def run_temporary_migrations():
                 payout_value DOUBLE PRECISION,
                 total_points DOUBLE PRECISION NOT NULL DEFAULT 0,
 
+                message_cost DOUBLE PRECISION NOT NULL DEFAULT 0,
+                cost_currency VARCHAR NOT NULL DEFAULT 'INR',
+                billing_status VARCHAR NOT NULL DEFAULT 'estimated',
+
                 status VARCHAR NOT NULL DEFAULT 'pending',
 
                 provider_message_id VARCHAR,
@@ -324,6 +328,21 @@ def run_temporary_migrations():
         """))
 
         connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ADD COLUMN IF NOT EXISTS message_cost DOUBLE PRECISION DEFAULT 0;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ADD COLUMN IF NOT EXISTS cost_currency VARCHAR DEFAULT 'INR';
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ADD COLUMN IF NOT EXISTS billing_status VARCHAR DEFAULT 'estimated';
+        """))
+
+        connection.execute(text("""
             UPDATE whatsapp_message_logs
             SET message_type = 'reward_points'
             WHERE message_type IS NULL;
@@ -333,6 +352,59 @@ def run_temporary_migrations():
             UPDATE whatsapp_message_logs
             SET redeemed_points = 0.0
             WHERE redeemed_points IS NULL;
+        """))
+
+        connection.execute(text("""
+            UPDATE whatsapp_message_logs
+            SET message_cost = 0
+            WHERE message_cost IS NULL;
+        """))
+
+        connection.execute(text("""
+            UPDATE whatsapp_message_logs
+            SET cost_currency = 'INR'
+            WHERE cost_currency IS NULL OR cost_currency = '';
+        """))
+
+        connection.execute(text("""
+            UPDATE whatsapp_message_logs
+            SET billing_status =
+                CASE
+                    WHEN status IN ('sent', 'delivered', 'read') THEN 'estimated'
+                    WHEN status = 'failed' THEN 'not_billable_failed'
+                    ELSE 'pending'
+                END
+            WHERE billing_status IS NULL OR billing_status = '';
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ALTER COLUMN message_cost SET DEFAULT 0;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ALTER COLUMN cost_currency SET DEFAULT 'INR';
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ALTER COLUMN billing_status SET DEFAULT 'estimated';
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ALTER COLUMN message_cost SET NOT NULL;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ALTER COLUMN cost_currency SET NOT NULL;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ALTER COLUMN billing_status SET NOT NULL;
         """))
 
         connection.execute(text("""
@@ -396,6 +468,36 @@ def run_temporary_migrations():
             USING points_redeemed::DOUBLE PRECISION;
         """))
 
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ALTER COLUMN added_points TYPE DOUBLE PRECISION
+            USING added_points::DOUBLE PRECISION;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ALTER COLUMN redeemed_points TYPE DOUBLE PRECISION
+            USING redeemed_points::DOUBLE PRECISION;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ALTER COLUMN payout_value TYPE DOUBLE PRECISION
+            USING payout_value::DOUBLE PRECISION;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ALTER COLUMN total_points TYPE DOUBLE PRECISION
+            USING total_points::DOUBLE PRECISION;
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE whatsapp_message_logs
+            ALTER COLUMN message_cost TYPE DOUBLE PRECISION
+            USING message_cost::DOUBLE PRECISION;
+        """))
+
 
 run_temporary_migrations()
 
@@ -405,7 +507,7 @@ run_temporary_migrations()
 # ------------------------------------------------------------------
 app = FastAPI(
     title="Aerostate - Loyalty Program API",
-    version="2.2.0",
+    version="2.3.0",
 )
 
 
@@ -467,7 +569,7 @@ def read_root():
     return {
         "project": "Aerostate - Loyalty Program",
         "status": "online",
-        "version": "2.2.0",
+        "version": "2.3.0",
     }
 
 

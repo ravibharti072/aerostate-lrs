@@ -994,10 +994,17 @@ function ReportsHub({ onBack }) {
           ],
           ["transactions"]
         ),
-        fetchFirstAvailable(["/items/", "/items", "/products/", "/products"], [
-          "items",
-          "products",
-        ]),
+        fetchFirstAvailable(
+          [
+            "/loyalty/items",
+            "/loyalty/items/",
+            "/items/",
+            "/items",
+            "/products/",
+            "/products",
+          ],
+          ["items", "products"]
+        ),
         api.get("/settings/point-value"),
       ]);
 
@@ -1040,6 +1047,26 @@ function ReportsHub({ onBack }) {
     fetchReportsData();
   }, []);
 
+  useEffect(() => {
+    const reloadWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        fetchReportsData();
+      }
+    };
+
+    const reloadOnFocus = () => {
+      fetchReportsData();
+    };
+
+    document.addEventListener("visibilitychange", reloadWhenVisible);
+    window.addEventListener("focus", reloadOnFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", reloadWhenVisible);
+      window.removeEventListener("focus", reloadOnFocus);
+    };
+  }, []);
+
   const payoutRows = useMemo(() => {
     return payouts.map((payout, index) => {
       const customer = payout.customer || {};
@@ -1078,7 +1105,9 @@ function ReportsHub({ onBack }) {
       );
 
       const payoutAmount = toNumber(
-        payout.payout_amount ??
+        payout.payout_value ??
+          payout.payoutValue ??
+          payout.payout_amount ??
           payout.payoutAmount ??
           payout.amount ??
           pointsRedeemed * pointValueUsed
@@ -1145,6 +1174,101 @@ function ReportsHub({ onBack }) {
     return map;
   }, [payoutRows]);
 
+  const transactionSummaryByCustomer = useMemo(() => {
+    const map = new Map();
+
+    const addSummary = (key, earnedPoints, redeemedPoints) => {
+      if (!key) return;
+
+      const current = map.get(key) || {
+        earned: 0,
+        redeemed: 0,
+      };
+
+      current.earned += earnedPoints;
+      current.redeemed += redeemedPoints;
+
+      map.set(key, current);
+    };
+
+    transactions.forEach((transaction) => {
+      const type = String(
+        transaction.type ||
+          transaction.transaction_type ||
+          transaction.entry_type ||
+          transaction.status ||
+          ""
+      ).toLowerCase();
+
+      const isRedeem =
+        type.includes("redeem") ||
+        type.includes("payout") ||
+        type.includes("debit");
+
+      const points = toNumber(
+        transaction.points ??
+          transaction.reward_points ??
+          transaction.points_earned ??
+          transaction.points_redeemed ??
+          transaction.total_points ??
+          transaction.total_reward_points ??
+          transaction.point
+      );
+
+      if (points <= 0) return;
+
+      const customer = transaction.customer || {};
+
+      const customerId =
+        transaction.customer_id ||
+        transaction.customerId ||
+        customer.id ||
+        customer.customer_id ||
+        "";
+
+      const phone =
+        transaction.phone ||
+        transaction.phone_number ||
+        transaction.customer_phone ||
+        transaction.customerPhone ||
+        customer.phone ||
+        customer.phone_number ||
+        customer.mobile ||
+        "";
+
+      const customerName =
+        transaction.customer_name ||
+        transaction.customerName ||
+        customer.name ||
+        customer.customer_name ||
+        customer.full_name ||
+        "";
+
+      const earnedPoints = isRedeem ? 0 : points;
+      const redeemedPoints = isRedeem ? points : 0;
+
+      if (customerId) {
+        addSummary(`id:${customerId}`, earnedPoints, redeemedPoints);
+      }
+
+      const normalizedPhone = normalizePhone(phone);
+
+      if (normalizedPhone) {
+        addSummary(`phone:${normalizedPhone}`, earnedPoints, redeemedPoints);
+      }
+
+      if (customerName) {
+        addSummary(
+          `name:${customerName.toLowerCase().trim()}`,
+          earnedPoints,
+          redeemedPoints
+        );
+      }
+    });
+
+    return map;
+  }, [transactions]);
+
   const customerRows = useMemo(() => {
     return customers.map((customer, index) => {
       const customerName =
@@ -1183,14 +1307,30 @@ function ReportsHub({ onBack }) {
           customer.balance_points
       );
 
-      const savedTotalRedeemed = toNumber(
-        customer.total_points_redeemed ??
-          customer.totalRedeemed ??
-          customer.total_redeemed ??
-          customer.points_redeemed
+      const earnedFromTransactions = Math.max(
+        0,
+        ...payoutKeys.map((key) =>
+          toNumber(transactionSummaryByCustomer.get(key)?.earned)
+        )
       );
 
-      const totalPointsRedeemed = savedTotalRedeemed || redeemedFromPayouts;
+      const redeemedFromTransactions = Math.max(
+        0,
+        ...payoutKeys.map((key) =>
+          toNumber(transactionSummaryByCustomer.get(key)?.redeemed)
+        )
+      );
+
+      /*
+        IMPORTANT:
+        Do not trust saved customer.total_points_redeemed here.
+        When a payout/redemption is deleted, that old saved value can stay stale.
+        Reports should use current payouts first because deleted payouts disappear
+        from /payouts immediately.
+      */
+      const totalPointsRedeemed =
+        redeemedFromPayouts ||
+        (payoutRows.length === 0 ? redeemedFromTransactions : 0);
 
       const savedTotalEarned = toNumber(
         customer.total_points_earned ??
@@ -1201,7 +1341,9 @@ function ReportsHub({ onBack }) {
       );
 
       const totalPointsEarned =
-        savedTotalEarned || availablePoints + totalPointsRedeemed;
+        earnedFromTransactions ||
+        savedTotalEarned ||
+        availablePoints + totalPointsRedeemed;
 
       return {
         id: customerId || index + 1,
@@ -1373,7 +1515,11 @@ function ReportsHub({ onBack }) {
       const item = map.get(monthKey);
       item.rewardEntries += row.pointsEarned > 0 ? 1 : 0;
       item.pointsGiven += row.pointsEarned;
-      item.pointsRedeemed += row.pointsRedeemed;
+
+      /*
+        Redemption totals are added from current /payouts below.
+        This avoids showing old deleted redemption transactions if a payout was removed.
+      */
     });
 
     monthlyPayoutRows.forEach((row) => {
@@ -1560,21 +1706,26 @@ function ReportsHub({ onBack }) {
       return getDateInputValue(row.date) === todayKey;
     });
 
-    const todaySummary = todayTransactions.reduce(
-      (summary, row) => {
-        summary.rewardEntries += row.pointsEarned > 0 ? 1 : 0;
-        summary.pointsGiven += row.pointsEarned;
-        summary.pointsRedeemed += row.pointsRedeemed;
-        return summary;
-      },
-      {
-        id: todayKey,
-        date: todayKey,
-        rewardEntries: 0,
-        pointsGiven: 0,
-        pointsRedeemed: 0,
-      }
-    );
+    const todayPayouts = payoutRows.filter((row) => {
+      return getDateInputValue(row.date) === todayKey;
+    });
+
+    const todaySummary = {
+      id: todayKey,
+      date: todayKey,
+      rewardEntries: 0,
+      pointsGiven: 0,
+      pointsRedeemed: 0,
+    };
+
+    todayTransactions.forEach((row) => {
+      todaySummary.rewardEntries += row.pointsEarned > 0 ? 1 : 0;
+      todaySummary.pointsGiven += row.pointsEarned;
+    });
+
+    todayPayouts.forEach((row) => {
+      todaySummary.pointsRedeemed += row.pointsRedeemed;
+    });
 
     if (
       todaySummary.rewardEntries === 0 &&
@@ -1585,17 +1736,16 @@ function ReportsHub({ onBack }) {
     }
 
     return [todaySummary];
-  }, [transactionRows]);
+  }, [transactionRows, payoutRows]);
 
   const dashboardSummary = useMemo(() => {
-    return customerRows.reduce(
-      (summary, row) => {
-        summary.totalCustomers += 1;
-        summary.totalEarned += row.totalPointsEarned;
-        summary.totalRedeemed += row.totalPointsRedeemed;
-        summary.totalAvailable += row.availablePoints;
-        summary.pendingPayoutValue += row.approxPayoutValue;
-        return summary;
+    const summary = customerRows.reduce(
+      (currentSummary, row) => {
+        currentSummary.totalCustomers += 1;
+        currentSummary.totalEarned += row.totalPointsEarned;
+        currentSummary.totalAvailable += row.availablePoints;
+        currentSummary.pendingPayoutValue += row.approxPayoutValue;
+        return currentSummary;
       },
       {
         totalCustomers: 0,
@@ -1605,7 +1755,23 @@ function ReportsHub({ onBack }) {
         pendingPayoutValue: 0,
       }
     );
-  }, [customerRows]);
+
+    /*
+      Redeemed Points must come from current payout rows, not saved customer
+      totals. This makes Reports refresh correctly after a redemption/payout is
+      deleted.
+    */
+    summary.totalRedeemed = payoutRows.reduce(
+      (total, row) => total + row.pointsRedeemed,
+      0
+    );
+
+    if (!summary.totalEarned) {
+      summary.totalEarned = summary.totalAvailable + summary.totalRedeemed;
+    }
+
+    return summary;
+  }, [customerRows, payoutRows]);
 
   const payoutSummary = useMemo(() => {
     const totalPaidPayoutAmount = payoutRows.reduce(

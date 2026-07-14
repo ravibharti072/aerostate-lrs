@@ -961,6 +961,7 @@ function ReportsHub({ onBack }) {
   const [customers, setCustomers] = useState([]);
   const [payouts, setPayouts] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [transactionsLoaded, setTransactionsLoaded] = useState(false);
   const [items, setItems] = useState([]);
   const [pointValue, setPointValue] = useState(0);
 
@@ -1018,6 +1019,10 @@ function ReportsHub({ onBack }) {
 
       if (transactionsData.status === "fulfilled") {
         setTransactions(transactionsData.value);
+        setTransactionsLoaded(true);
+      } else {
+        setTransactions([]);
+        setTransactionsLoaded(false);
       }
 
       if (itemsData.status === "fulfilled") {
@@ -1154,10 +1159,155 @@ function ReportsHub({ onBack }) {
     });
   }, [payouts, pointValue]);
 
+  const transactionPayoutRows = useMemo(() => {
+    const customerById = new Map();
+
+    customers.forEach((customer) => {
+      const customerId = customer.id || customer.customer_id || customer._id;
+
+      if (customerId) {
+        customerById.set(String(customerId), customer);
+      }
+    });
+
+    return transactions
+      .map((transaction, index) => {
+        const type = String(
+          transaction.type ||
+            transaction.transaction_type ||
+            transaction.entry_type ||
+            transaction.status ||
+            ""
+        ).toLowerCase();
+
+        const rawPoints = toNumber(
+          transaction.points ??
+            transaction.reward_points ??
+            transaction.points_earned ??
+            transaction.points_redeemed ??
+            transaction.total_points ??
+            transaction.total_reward_points ??
+            transaction.point
+        );
+
+        const isRedeem =
+          rawPoints < 0 ||
+          type.includes("redeem") ||
+          type.includes("payout") ||
+          type.includes("debit") ||
+          type.includes("used");
+
+        const pointsRedeemed = Math.abs(rawPoints);
+
+        if (!isRedeem || pointsRedeemed <= 0) return null;
+
+        const transactionCustomer = transaction.customer || {};
+        const customerId =
+          transaction.customer_id ||
+          transaction.customerId ||
+          transactionCustomer.id ||
+          transactionCustomer.customer_id ||
+          "";
+
+        const savedCustomer = customerId
+          ? customerById.get(String(customerId)) || {}
+          : {};
+
+        const customer = {
+          ...savedCustomer,
+          ...transactionCustomer,
+        };
+
+        const customerName =
+          transaction.customer_name ||
+          transaction.customerName ||
+          customer.customer_name ||
+          customer.name ||
+          customer.full_name ||
+          "-";
+
+        const phone =
+          transaction.phone ||
+          transaction.phone_number ||
+          transaction.customer_phone ||
+          transaction.customerPhone ||
+          customer.phone ||
+          customer.phone_number ||
+          customer.mobile ||
+          "-";
+
+        const savedAmount = toNumber(
+          transaction.amount ??
+            transaction.payout_value ??
+            transaction.payoutValue ??
+            transaction.payout_amount ??
+            transaction.payoutAmount ??
+            0
+        );
+
+        const payoutAmount =
+          savedAmount > 0 ? savedAmount : pointsRedeemed * pointValue;
+
+        const pointValueUsed =
+          pointsRedeemed > 0
+            ? payoutAmount / pointsRedeemed || pointValue
+            : pointValue;
+
+        return {
+          id: transaction.id || transaction._id || `txn-${index + 1}`,
+          date:
+            transaction.created_at ||
+            transaction.createdAt ||
+            transaction.date ||
+            transaction.transaction_date ||
+            "",
+          customerId,
+          customerName,
+          phone,
+          normalizedPhone: normalizePhone(phone),
+          pointsRedeemed,
+          pointValueUsed,
+          payoutAmount,
+          bankName:
+            transaction.bank_name ||
+            transaction.bankName ||
+            customer.bank_name ||
+            customer.bankName ||
+            "-",
+          accountNumber:
+            transaction.account_number ||
+            transaction.accountNumber ||
+            customer.bank_account_number ||
+            customer.account_number ||
+            customer.accountNumber ||
+            "-",
+          ifsc:
+            transaction.ifsc_code ||
+            transaction.ifsc ||
+            transaction.ifscCode ||
+            customer.ifsc_code ||
+            customer.ifsc ||
+            customer.ifscCode ||
+            "-",
+          note:
+            transaction.note ||
+            transaction.notes ||
+            transaction.remark ||
+            transaction.remarks ||
+            "-",
+        };
+      })
+      .filter(Boolean);
+  }, [transactions, customers, pointValue]);
+
+  const reportPayoutRows = useMemo(() => {
+    return transactionsLoaded ? transactionPayoutRows : payoutRows;
+  }, [transactionsLoaded, transactionPayoutRows, payoutRows]);
+
   const payoutRedeemedByCustomer = useMemo(() => {
     const map = new Map();
 
-    payoutRows.forEach((payout) => {
+    reportPayoutRows.forEach((payout) => {
       const keys = [];
 
       if (payout.customerId) keys.push(`id:${payout.customerId}`);
@@ -1172,7 +1322,7 @@ function ReportsHub({ onBack }) {
     });
 
     return map;
-  }, [payoutRows]);
+  }, [reportPayoutRows]);
 
   const transactionSummaryByCustomer = useMemo(() => {
     const map = new Map();
@@ -1324,13 +1474,11 @@ function ReportsHub({ onBack }) {
       /*
         IMPORTANT:
         Do not trust saved customer.total_points_redeemed here.
-        When a payout/redemption is deleted, that old saved value can stay stale.
-        Reports should use current payouts first because deleted payouts disappear
-        from /payouts immediately.
+        When a redemption is deleted from Transaction History, that saved value
+        can stay stale. Reports should use the same live source as the
+        Payout / Redemption page: transactions first, payouts only as fallback.
       */
-      const totalPointsRedeemed =
-        redeemedFromPayouts ||
-        (payoutRows.length === 0 ? redeemedFromTransactions : 0);
+      const totalPointsRedeemed = redeemedFromPayouts || redeemedFromTransactions;
 
       const savedTotalEarned = toNumber(
         customer.total_points_earned ??
@@ -1368,12 +1516,17 @@ function ReportsHub({ onBack }) {
           "",
       };
     });
-  }, [customers, payoutRedeemedByCustomer, pointValue]);
+  }, [
+    customers,
+    payoutRedeemedByCustomer,
+    transactionSummaryByCustomer,
+    pointValue,
+  ]);
 
   const monthlyPayoutRows = useMemo(() => {
     const map = new Map();
 
-    payoutRows.forEach((row) => {
+    reportPayoutRows.forEach((row) => {
       const monthKey = getDateInputValue(row.date).slice(0, 7) || "Unknown";
 
       if (!map.has(monthKey)) {
@@ -1395,7 +1548,7 @@ function ReportsHub({ onBack }) {
     return Array.from(map.values()).sort((a, b) =>
       b.month.localeCompare(a.month)
     );
-  }, [payoutRows]);
+  }, [reportPayoutRows]);
 
   const transactionRows = useMemo(() => {
     return transactions.map((transaction, index) => {
@@ -1489,7 +1642,7 @@ function ReportsHub({ onBack }) {
             transaction.total_qty
         ),
         pointsEarned: isRedeem ? 0 : points,
-        pointsRedeemed: isRedeem ? points : 0,
+        pointsRedeemed: isRedeem ? Math.abs(points) : 0,
       };
     });
   }, [transactions]);
@@ -1706,7 +1859,7 @@ function ReportsHub({ onBack }) {
       return getDateInputValue(row.date) === todayKey;
     });
 
-    const todayPayouts = payoutRows.filter((row) => {
+    const todayPayouts = reportPayoutRows.filter((row) => {
       return getDateInputValue(row.date) === todayKey;
     });
 
@@ -1736,7 +1889,7 @@ function ReportsHub({ onBack }) {
     }
 
     return [todaySummary];
-  }, [transactionRows, payoutRows]);
+  }, [transactionRows, reportPayoutRows]);
 
   const dashboardSummary = useMemo(() => {
     const summary = customerRows.reduce(
@@ -1757,11 +1910,11 @@ function ReportsHub({ onBack }) {
     );
 
     /*
-      Redeemed Points must come from current payout rows, not saved customer
-      totals. This makes Reports refresh correctly after a redemption/payout is
-      deleted.
+      Redeemed Points must come from the live redemption source, not saved
+      customer totals. This follows Payout / Redemption page logic: current
+      transactions first, payouts only as fallback.
     */
-    summary.totalRedeemed = payoutRows.reduce(
+    summary.totalRedeemed = reportPayoutRows.reduce(
       (total, row) => total + row.pointsRedeemed,
       0
     );
@@ -1771,10 +1924,10 @@ function ReportsHub({ onBack }) {
     }
 
     return summary;
-  }, [customerRows, payoutRows]);
+  }, [customerRows, reportPayoutRows]);
 
   const payoutSummary = useMemo(() => {
-    const totalPaidPayoutAmount = payoutRows.reduce(
+    const totalPaidPayoutAmount = reportPayoutRows.reduce(
       (total, row) => total + row.payoutAmount,
       0
     );
@@ -1785,7 +1938,7 @@ function ReportsHub({ onBack }) {
       totalPaidPayoutAmount,
       pendingPayoutAmount,
     };
-  }, [payoutRows, dashboardSummary.totalAvailable, pointValue]);
+  }, [reportPayoutRows, dashboardSummary.totalAvailable, pointValue]);
 
   const filteredRows = useMemo(() => {
     const search = searchTerm.toLowerCase().trim();
@@ -1805,7 +1958,7 @@ function ReportsHub({ onBack }) {
 
     switch (activeReport) {
       case "payout":
-        return filterBySearchAndDate(payoutRows, "date");
+        return filterBySearchAndDate(reportPayoutRows, "date");
       case "customerBalance":
         return filterBySearchAndDate(customerRows, "lastActivity");
       case "monthlyPayout":
@@ -1824,7 +1977,7 @@ function ReportsHub({ onBack }) {
     searchTerm,
     fromDate,
     toDate,
-    payoutRows,
+    reportPayoutRows,
     customerRows,
     monthlyPayoutRows,
     monthlyRewardRows,

@@ -39,6 +39,25 @@ const DEFAULT_TEMPLATES = {
   },
 };
 
+const DEFAULT_SPEND_SUMMARY = {
+  total_logs: 0,
+  total_messages: 0,
+  sent_messages: 0,
+  delivered_messages: 0,
+  read_messages: 0,
+  failed_messages: 0,
+  pending_messages: 0,
+  reward_messages: 0,
+  redemption_messages: 0,
+  billable_messages: 0,
+  total_estimated_spend: 0,
+  reward_estimated_spend: 0,
+  redemption_estimated_spend: 0,
+  cost_per_message: 0.11,
+  cost_currency: "INR",
+  billing_status: "estimated",
+};
+
 const SEND_TYPES = {
   reward: {
     key: "reward",
@@ -84,6 +103,13 @@ const normalizeCustomers = (data) => {
   return [];
 };
 
+const normalizeSpendSummary = (data) => {
+  return {
+    ...DEFAULT_SPEND_SUMMARY,
+    ...(data && typeof data === "object" ? data : {}),
+  };
+};
+
 const getEntryId = (entry) =>
   entry?.reward_entry_id || entry?.transaction_group_id || entry?.id;
 
@@ -127,6 +153,20 @@ const formatMoney = (value) => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+};
+
+const getCurrencySymbol = (currency) => {
+  const normalized = String(currency || "INR").toUpperCase();
+
+  if (normalized === "INR") return "₹";
+  if (normalized === "USD") return "$";
+  if (normalized === "EUR") return "€";
+
+  return `${normalized} `;
+};
+
+const formatSpend = (value, currency = "INR") => {
+  return `${getCurrencySymbol(currency)}${formatMoney(value)}`;
 };
 
 const getStatusIcon = (status) => {
@@ -279,6 +319,7 @@ const WhatsApp = ({ onBack }) => {
   const [rewardEntries, setRewardEntries] = useState([]);
   const [payouts, setPayouts] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [spendSummary, setSpendSummary] = useState(DEFAULT_SPEND_SUMMARY);
 
   const [selectedRewardEntryId, setSelectedRewardEntryId] = useState("");
   const [selectedPayoutId, setSelectedPayoutId] = useState("");
@@ -297,6 +338,7 @@ const WhatsApp = ({ onBack }) => {
   const [loading, setLoading] = useState(false);
   const [loadingEntries, setLoadingEntries] = useState(false);
   const [loadingPayouts, setLoadingPayouts] = useState(false);
+  const [loadingSpend, setLoadingSpend] = useState(false);
 
   const [sendingId, setSendingId] = useState(null);
   const [sendingType, setSendingType] = useState("");
@@ -310,6 +352,20 @@ const WhatsApp = ({ onBack }) => {
     setTimeout(() => {
       setToast(null);
     }, 3200);
+  };
+
+  const loadSpendSummary = async () => {
+    try {
+      setLoadingSpend(true);
+
+      const response = await api.get("/messages/spend-summary");
+      setSpendSummary(normalizeSpendSummary(response.data));
+    } catch (error) {
+      console.error("WhatsApp spend summary loading error:", error);
+      setSpendSummary(DEFAULT_SPEND_SUMMARY);
+    } finally {
+      setLoadingSpend(false);
+    }
   };
 
   const loadLogs = async () => {
@@ -391,6 +447,7 @@ const WhatsApp = ({ onBack }) => {
   const refreshAll = async () => {
     await Promise.allSettled([
       loadLogs(),
+      loadSpendSummary(),
       loadRewardEntries(),
       loadCustomers(),
       loadPayouts(),
@@ -399,6 +456,7 @@ const WhatsApp = ({ onBack }) => {
 
   useEffect(() => {
     loadLogs();
+    loadSpendSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
 
@@ -468,6 +526,8 @@ const WhatsApp = ({ onBack }) => {
         log.status,
         log.message_preview,
         log.sent_by_username,
+        log.message_cost,
+        log.billing_status,
       ];
 
       return values.some((value) =>
@@ -477,30 +537,35 @@ const WhatsApp = ({ onBack }) => {
   }, [logs, searchText, historyTypeFilter]);
 
   const totals = useMemo(() => {
-    return logs.reduce(
-      (acc, log) => {
-        const status = String(log.status || "").toLowerCase();
-
-        acc.total += 1;
-
-        if (status === "sent" || status === "delivered" || status === "read") {
-          acc.sent += 1;
-        } else if (status === "failed") {
-          acc.failed += 1;
-        } else {
-          acc.pending += 1;
-        }
-
-        return acc;
-      },
-      {
-        total: 0,
-        sent: 0,
-        failed: 0,
-        pending: 0,
-      }
-    );
-  }, [logs]);
+    return {
+      total:
+        Number(spendSummary.total_messages || 0) ||
+        logs.length ||
+        DEFAULT_SPEND_SUMMARY.total_messages,
+      sent:
+        Number(spendSummary.sent_messages || 0) ||
+        logs.filter((log) => {
+          const status = String(log.status || "").toLowerCase();
+          return status === "sent" || status === "delivered" || status === "read";
+        }).length,
+      failed:
+        Number(spendSummary.failed_messages || 0) ||
+        logs.filter((log) => String(log.status || "").toLowerCase() === "failed")
+          .length,
+      pending:
+        Number(spendSummary.pending_messages || 0) ||
+        logs.filter((log) => {
+          const status = String(log.status || "").toLowerCase();
+          return !["sent", "delivered", "read", "failed"].includes(status);
+        }).length,
+      totalSpend: Number(spendSummary.total_estimated_spend || 0),
+      rewardSpend: Number(spendSummary.reward_estimated_spend || 0),
+      redemptionSpend: Number(spendSummary.redemption_estimated_spend || 0),
+      billable: Number(spendSummary.billable_messages || 0),
+      costPerMessage: Number(spendSummary.cost_per_message || 0.11),
+      currency: spendSummary.cost_currency || "INR",
+    };
+  }, [logs, spendSummary]);
 
   const sentRewardEntryIds = useMemo(() => {
     return new Set(
@@ -654,10 +719,17 @@ const WhatsApp = ({ onBack }) => {
       });
 
       if (response.data?.success) {
+        const costText = response.data?.message_cost
+          ? ` Spend: ${formatSpend(
+              response.data.message_cost,
+              response.data.cost_currency || totals.currency
+            )}.`
+          : "";
+
         showToast(
           type === "redemption"
-            ? "Redemption WhatsApp message sent successfully."
-            : "Reward WhatsApp message sent successfully.",
+            ? `Redemption WhatsApp message sent successfully.${costText}`
+            : `Reward WhatsApp message sent successfully.${costText}`,
           "success"
         );
 
@@ -830,6 +902,12 @@ const WhatsApp = ({ onBack }) => {
     return log.reward_entry_id;
   };
 
+  const getHistoryCostText = (log) => {
+    const cost = Number(log.message_cost || 0);
+    const currency = log.cost_currency || totals.currency || "INR";
+    return formatSpend(cost, currency);
+  };
+
   return (
     <>
       <style>{whatsappPageCss}</style>
@@ -858,14 +936,14 @@ const WhatsApp = ({ onBack }) => {
             </div>
 
             <div>
-              <h1 className="asw-title">WhatsApp</h1>
+              <h1 className="asw-title">WhatsApp Messaging</h1>
               <p className="asw-subtitle">
-                Send reward and redemption WhatsApp messages manually, view
-                message history, manage templates, and check delivery status.
+                Send reward and redemption WhatsApp messages, view message
+                history, track estimated messaging spend, and manage approved
+                template preview text.
               </p>
             </div>
           </div>
-
         </section>
 
         {notice ? <div className="asw-alert">{notice}</div> : null}
@@ -893,9 +971,9 @@ const WhatsApp = ({ onBack }) => {
           />
 
           <StatCard
-            icon={<FiClock />}
-            label="Pending"
-            value={totals.pending}
+            icon={<FiCreditCard />}
+            label="Estimated Spend"
+            value={loadingSpend ? "Loading..." : formatSpend(totals.totalSpend, totals.currency)}
             tone="orange"
           />
         </section>
@@ -1180,6 +1258,11 @@ const WhatsApp = ({ onBack }) => {
                   Language:{" "}
                   <strong>{templates[activeSendType].language}</strong>
                   <br />
+                  Estimated cost per successful message:{" "}
+                  <strong>
+                    {formatSpend(totals.costPerMessage, totals.currency)}
+                  </strong>
+                  <br />
                   Rule:{" "}
                   <strong>
                     Sent transactions are removed from Send list
@@ -1197,7 +1280,7 @@ const WhatsApp = ({ onBack }) => {
                 <h2 className="asw-card-title">WhatsApp Message History</h2>
                 <p className="asw-card-subtitle">
                   Showing latest reward and redemption WhatsApp logs from
-                  backend.
+                  backend with estimated spend.
                 </p>
               </div>
 
@@ -1211,7 +1294,7 @@ const WhatsApp = ({ onBack }) => {
                 <FiSearch />
                 <input
                   type="text"
-                  placeholder="Search customer, phone, message..."
+                  placeholder="Search customer, phone, message, cost..."
                   value={searchText}
                   onChange={(event) => setSearchText(event.target.value)}
                 />
@@ -1267,6 +1350,7 @@ const WhatsApp = ({ onBack }) => {
                         <th>Points</th>
                         <th>Total Points</th>
                         <th>Status</th>
+                        <th>Cost</th>
                         <th>Sent By</th>
                         <th>Message Preview</th>
                         <th>Action</th>
@@ -1348,6 +1432,15 @@ const WhatsApp = ({ onBack }) => {
                               >
                                 {getStatusIcon(log.status)}
                                 {getStatusLabel(log.status)}
+                              </span>
+                            </td>
+
+                            <td>
+                              <span className="asw-cost-pill">
+                                {getHistoryCostText(log)}
+                              </span>
+                              <span className="asw-cost-sub">
+                                {log.billing_status || "estimated"}
                               </span>
                             </td>
 
@@ -1434,6 +1527,10 @@ const WhatsApp = ({ onBack }) => {
                           <span>{getHistoryPointText(log)} pts</span>
 
                           <span>Total {formatPoints(log.total_points)} pts</span>
+
+                          <span>
+                            <FiCreditCard /> {getHistoryCostText(log)}
+                          </span>
                         </div>
 
                         <div className="asw-mobile-message">
@@ -1473,7 +1570,8 @@ const WhatsApp = ({ onBack }) => {
                 <h2 className="asw-card-title">WhatsApp Templates</h2>
                 <p className="asw-card-subtitle">
                   Edit reward and redemption template text used for preview and
-                  software settings.
+                  software settings. Meta approval is managed inside WhatsApp
+                  Manager.
                 </p>
               </div>
 
@@ -1681,7 +1779,8 @@ const WhatsApp = ({ onBack }) => {
               <div>
                 <h2 className="asw-card-title">WhatsApp Settings</h2>
                 <p className="asw-card-subtitle">
-                  Current integration status and next setup requirements.
+                  Current integration status, estimated spend, and remaining
+                  production requirements.
                 </p>
               </div>
             </div>
@@ -1689,18 +1788,56 @@ const WhatsApp = ({ onBack }) => {
             <div className="asw-option-grid">
               <div className="asw-option-card">
                 <div className="asw-option-icon">
+                  <FiCreditCard />
+                </div>
+
+                <h3>Messaging Spend</h3>
+
+                <ul className="asw-clean-list">
+                  <li>
+                    Total estimated spend:{" "}
+                    <strong>{formatSpend(totals.totalSpend, totals.currency)}</strong>
+                  </li>
+                  <li>
+                    Reward message spend:{" "}
+                    <strong>{formatSpend(totals.rewardSpend, totals.currency)}</strong>
+                  </li>
+                  <li>
+                    Redemption message spend:{" "}
+                    <strong>
+                      {formatSpend(totals.redemptionSpend, totals.currency)}
+                    </strong>
+                  </li>
+                  <li>
+                    Billable messages: <strong>{totals.billable}</strong>
+                  </li>
+                  <li>
+                    Cost per successful message:{" "}
+                    <strong>
+                      {formatSpend(totals.costPerMessage, totals.currency)}
+                    </strong>
+                  </li>
+                  <li>
+                    Billing status:{" "}
+                    <strong>{spendSummary.billing_status || "estimated"}</strong>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="asw-option-card">
+                <div className="asw-option-icon">
                   <FiSettings />
                 </div>
 
-                <h3>Current Local Mode</h3>
+                <h3>Production Mode</h3>
 
                 <ul className="asw-clean-list">
-                  <li>WHATSAPP_MOCK=true for local testing</li>
-                  <li>No real WhatsApp message is sent in mock mode</li>
-                  <li>Backend still creates message logs</li>
-                  <li>Reward endpoint sends reward point messages</li>
-                  <li>Redemption endpoint sends payout/redeem messages</li>
-                  <li>Live server needs Meta access token and phone number ID</li>
+                  <li>Central WhatsApp number is registered in Meta</li>
+                  <li>WHATSAPP_ENABLED=true on EC2 backend .env</li>
+                  <li>WHATSAPP_MOCK=false on EC2 backend .env</li>
+                  <li>WHATSAPP_ACCESS_TOKEN must stay only on server</li>
+                  <li>Manual send should be tested before auto-send</li>
+                  <li>Auto-send should remain OFF until payment is added</li>
                 </ul>
               </div>
 
@@ -1709,16 +1846,35 @@ const WhatsApp = ({ onBack }) => {
                   <FiCheckCircle />
                 </div>
 
-                <h3>Production Checklist</h3>
+                <h3>Remaining Checklist</h3>
 
                 <ul className="asw-clean-list">
-                  <li>Meta WhatsApp Business API account</li>
-                  <li>Approved display name</li>
-                  <li>Approved reward utility template</li>
-                  <li>Approved redemption utility template</li>
-                  <li>WHATSAPP_ENABLED=true on EC2 backend .env</li>
-                  <li>WHATSAPP_ACCESS_TOKEN only on server</li>
+                  <li>Reward utility template approved by Meta</li>
+                  <li>Redemption utility template approved by Meta</li>
+                  <li>Payment method added in Meta billing</li>
+                  <li>Manual reward WhatsApp test from LRS</li>
+                  <li>Manual redemption WhatsApp test from LRS</li>
+                  <li>Then enable auto-send in backend .env</li>
                 </ul>
+              </div>
+
+              <div className="asw-option-card">
+                <div className="asw-option-icon">
+                  <FiMessageCircle />
+                </div>
+
+                <h3>Auto-send Setting</h3>
+
+                <p>
+                  Keep auto-send disabled while templates are in review or
+                  payment is not added. After manual send works, enable:
+                </p>
+
+                <div className="asw-code-box">
+                  WHATSAPP_AUTO_SEND_REWARD=true
+                  <br />
+                  WHATSAPP_AUTO_SEND_REDEMPTION=true
+                </div>
               </div>
             </div>
           </section>
@@ -2294,7 +2450,7 @@ const whatsappPageCss = `
 
   .asw-table {
     width: 100%;
-    min-width: 1320px;
+    min-width: 1440px;
     border-collapse: separate;
     border-spacing: 0;
   }
@@ -2446,6 +2602,25 @@ const whatsappPageCss = `
     font-weight: 950;
   }
 
+  .asw-cost-pill {
+    display: inline-flex;
+    border-radius: 999px;
+    background: #f0fdf4;
+    color: #15803d;
+    padding: 7px 11px;
+    font-weight: 950;
+    white-space: nowrap;
+  }
+
+  .asw-cost-sub {
+    display: block;
+    margin-top: 5px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: capitalize;
+  }
+
   .asw-message {
     max-width: 520px;
     color: #334155;
@@ -2551,6 +2726,19 @@ const whatsappPageCss = `
     color: #334155;
     line-height: 1.8;
     font-weight: 800;
+  }
+
+  .asw-code-box {
+    margin-top: 12px;
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 14px;
+    padding: 13px;
+    font-size: 13px;
+    font-weight: 850;
+    line-height: 1.7;
+    font-family: Consolas, Monaco, "Courier New", monospace;
+    overflow-x: auto;
   }
 
   .asw-template-actions {

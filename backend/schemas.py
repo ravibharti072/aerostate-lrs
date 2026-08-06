@@ -750,7 +750,7 @@ class WhatsAppMessageLogResponse(BaseModel):
     reward_entry_id: Optional[int] = None
     payout_id: Optional[int] = None
 
-    # reward_points / redemption_points
+    # reward_points / redemption_points / welcome_message
     message_type: Optional[str] = "reward_points"
 
     sent_by_user_id: Optional[int] = None
@@ -807,12 +807,14 @@ class WhatsAppSpendSummaryResponse(BaseModel):
 
     reward_messages: int = 0
     redemption_messages: int = 0
+    welcome_messages: int = 0  # Added field
 
     billable_messages: int = 0
 
     total_estimated_spend: float = 0.0
     reward_estimated_spend: float = 0.0
     redemption_estimated_spend: float = 0.0
+    welcome_estimated_spend: float = 0.0 # Added field
 
     cost_per_message: float = 0.11
     cost_currency: str = "INR"

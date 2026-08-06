@@ -18,6 +18,7 @@ import {
   FiDollarSign,
   FiAward,
   FiCreditCard,
+  FiHeart,
 } from "react-icons/fi";
 
 import api from "../api/axios";
@@ -25,17 +26,20 @@ import api from "../api/axios";
 const TEMPLATE_STORAGE_KEY = "aerostate_whatsapp_templates";
 
 const DEFAULT_TEMPLATES = {
+  welcome: {
+    name: "hello_world",
+    language: "en_US",
+    body: "Welcome and congratulations!! This message demonstrates your ability to send a WhatsApp message notification from the Cloud API.",
+  },
   reward: {
     name: "reward_points_update",
     language: "en",
-    body:
-      "Dear {{1}}, {{2}} reward points have been added to your account at {{3}}. Your total balance is {{4}} points. Thank you.",
+    body: "Dear {{1}}, {{2}} reward points have been added to your account at {{3}}. Your total balance is {{4}} points. Thank you.",
   },
   redemption: {
     name: "redemption_points_update",
     language: "en",
-    body:
-      "Dear {{1}}, {{2}} reward points have been redeemed from your account at {{3}}. Your total balance is {{4}} points. Payout amount is ₹{{5}}. Thank you.",
+    body: "Dear {{1}}, {{2}} reward points have been redeemed from your account at {{3}}. Your total balance is {{4}} points. Payout amount is ₹{{5}}. Thank you.",
   },
 };
 
@@ -49,16 +53,23 @@ const DEFAULT_SPEND_SUMMARY = {
   pending_messages: 0,
   reward_messages: 0,
   redemption_messages: 0,
+  welcome_messages: 0,
   billable_messages: 0,
   total_estimated_spend: 0,
   reward_estimated_spend: 0,
   redemption_estimated_spend: 0,
+  welcome_estimated_spend: 0,
   cost_per_message: 0.11,
   cost_currency: "INR",
   billing_status: "estimated",
 };
 
 const SEND_TYPES = {
+  welcome: {
+    key: "welcome",
+    label: "Welcome Message",
+    shortLabel: "Welcome",
+  },
   reward: {
     key: "reward",
     label: "Reward Points",
@@ -204,6 +215,10 @@ const getLogType = (log) => {
     log?.message_type || log?.type || log?.template_type || ""
   ).toLowerCase();
 
+  if (rawType.includes("welcome")) {
+    return "welcome";
+  }
+
   if (
     rawType.includes("redemption") ||
     rawType.includes("redeem") ||
@@ -230,6 +245,11 @@ const loadSavedTemplates = () => {
     const parsed = JSON.parse(saved);
 
     return {
+      welcome: {
+        name: parsed?.welcome?.name || DEFAULT_TEMPLATES.welcome.name,
+        language: parsed?.welcome?.language || DEFAULT_TEMPLATES.welcome.language,
+        body: parsed?.welcome?.body || DEFAULT_TEMPLATES.welcome.body,
+      },
       reward: {
         name: parsed?.reward?.name || DEFAULT_TEMPLATES.reward.name,
         language:
@@ -249,6 +269,13 @@ const loadSavedTemplates = () => {
   } catch {
     return DEFAULT_TEMPLATES;
   }
+};
+
+const buildWelcomePreview = (templateBody, customer) => {
+  if (!customer) {
+    return "No customer selected. Please select a customer from the list.";
+  }
+  return String(templateBody || DEFAULT_TEMPLATES.welcome.body);
 };
 
 const buildRewardPreview = (templateBody, entry) => {
@@ -323,6 +350,7 @@ const WhatsApp = ({ onBack }) => {
 
   const [selectedRewardEntryId, setSelectedRewardEntryId] = useState("");
   const [selectedPayoutId, setSelectedPayoutId] = useState("");
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [historyTypeFilter, setHistoryTypeFilter] = useState("all");
@@ -561,6 +589,7 @@ const WhatsApp = ({ onBack }) => {
       totalSpend: Number(spendSummary.total_estimated_spend || 0),
       rewardSpend: Number(spendSummary.reward_estimated_spend || 0),
       redemptionSpend: Number(spendSummary.redemption_estimated_spend || 0),
+      welcomeSpend: Number(spendSummary.welcome_estimated_spend || 0),
       billable: Number(spendSummary.billable_messages || 0),
       costPerMessage: Number(spendSummary.cost_per_message || 0.11),
       currency: spendSummary.cost_currency || "INR",
@@ -622,41 +651,25 @@ const WhatsApp = ({ onBack }) => {
     });
   }, [enhancedPayouts, sentPayoutIds]);
 
+  // Fallback selections when lists update
   useEffect(() => {
-    if (availableRewardEntries.length === 0) {
-      if (selectedRewardEntryId) {
-        setSelectedRewardEntryId("");
-      }
-
-      return;
-    }
-
-    const selectedStillAvailable = availableRewardEntries.some(
-      (entry) => String(getEntryId(entry)) === String(selectedRewardEntryId)
-    );
-
-    if (!selectedStillAvailable) {
-      setSelectedRewardEntryId(String(getEntryId(availableRewardEntries[0])));
+    if (availableRewardEntries.length > 0 && !selectedRewardEntryId) {
+        setSelectedRewardEntryId(String(getEntryId(availableRewardEntries[0])));
     }
   }, [availableRewardEntries, selectedRewardEntryId]);
 
   useEffect(() => {
-    if (availablePayouts.length === 0) {
-      if (selectedPayoutId) {
-        setSelectedPayoutId("");
-      }
-
-      return;
-    }
-
-    const selectedStillAvailable = availablePayouts.some(
-      (payout) => String(getPayoutId(payout)) === String(selectedPayoutId)
-    );
-
-    if (!selectedStillAvailable) {
-      setSelectedPayoutId(String(getPayoutId(availablePayouts[0])));
+    if (availablePayouts.length > 0 && !selectedPayoutId) {
+        setSelectedPayoutId(String(getPayoutId(availablePayouts[0])));
     }
   }, [availablePayouts, selectedPayoutId]);
+
+  useEffect(() => {
+    if (customers.length > 0 && !selectedCustomerId) {
+        setSelectedCustomerId(String(customers[0].id));
+    }
+  }, [customers, selectedCustomerId]);
+
 
   const selectedRewardEntry = useMemo(() => {
     return availableRewardEntries.find(
@@ -670,45 +683,61 @@ const WhatsApp = ({ onBack }) => {
     );
   }, [availablePayouts, selectedPayoutId]);
 
+  const selectedCustomer = useMemo(() => {
+    return customers.find(
+      (customer) => String(customer.id) === String(selectedCustomerId)
+    );
+  }, [customers, selectedCustomerId]);
+
   const previewMessage = useMemo(() => {
+    if (activeSendType === "welcome") {
+      return buildWelcomePreview(templates.welcome.body, selectedCustomer);
+    }
     if (activeSendType === "redemption") {
       return buildRedemptionPreview(templates.redemption.body, selectedPayout);
     }
-
     return buildRewardPreview(templates.reward.body, selectedRewardEntry);
   }, [
     activeSendType,
     templates,
     selectedRewardEntry,
     selectedPayout,
+    selectedCustomer,
   ]);
 
   const draftPreviewMessage = useMemo(() => {
+    if (templateEditType === "welcome") {
+        return buildWelcomePreview(templateDrafts.welcome.body, selectedCustomer);
+    }
     if (templateEditType === "redemption") {
       return buildRedemptionPreview(
         templateDrafts.redemption.body,
         selectedPayout
       );
     }
-
     return buildRewardPreview(templateDrafts.reward.body, selectedRewardEntry);
   }, [
     templateEditType,
     templateDrafts,
     selectedRewardEntry,
     selectedPayout,
+    selectedCustomer,
   ]);
 
   const sendMessageByType = async (type, recordId, allowResend = false) => {
     if (!recordId) {
-      showToast("Please select a transaction first.", "error");
+      showToast("Please select a valid record first.", "error");
       return;
     }
 
-    const url =
-      type === "redemption"
-        ? `/messages/payout/${recordId}/whatsapp/send`
-        : `/messages/reward-entry/${recordId}/whatsapp/send`;
+    let url;
+    if (type === "welcome") {
+        url = `/messages/customer/${recordId}/whatsapp/welcome`;
+    } else if (type === "redemption") {
+        url = `/messages/payout/${recordId}/whatsapp/send`;
+    } else {
+        url = `/messages/reward-entry/${recordId}/whatsapp/send`;
+    }
 
     try {
       setSendingId(String(recordId));
@@ -729,6 +758,8 @@ const WhatsApp = ({ onBack }) => {
         showToast(
           type === "redemption"
             ? `Redemption WhatsApp message sent successfully.${costText}`
+            : type === "welcome" 
+            ? `Welcome WhatsApp message sent successfully.${costText}`
             : `Reward WhatsApp message sent successfully.${costText}`,
           "success"
         );
@@ -772,6 +803,10 @@ const WhatsApp = ({ onBack }) => {
   };
 
   const sendSelectedWhatsApp = () => {
+    if (activeSendType === "welcome") {
+        sendMessageByType("welcome", selectedCustomerId, false);
+        return;
+    }
     if (activeSendType === "redemption") {
       sendMessageByType("redemption", selectedPayoutId, false);
       return;
@@ -819,10 +854,13 @@ const WhatsApp = ({ onBack }) => {
       return;
     }
 
-    const requiredVariables =
-      templateEditType === "redemption"
-        ? ["{{1}}", "{{2}}", "{{3}}", "{{4}}", "{{5}}"]
-        : ["{{1}}", "{{2}}", "{{3}}", "{{4}}"];
+    let requiredVariables = [];
+    if (templateEditType === "redemption") {
+        requiredVariables = ["{{1}}", "{{2}}", "{{3}}", "{{4}}", "{{5}}"];
+    } else if (templateEditType === "reward") {
+        requiredVariables = ["{{1}}", "{{2}}", "{{3}}", "{{4}}"];
+    }
+    // Welcome usually doesn't require variables unless specific to the custom template
 
     const missingVariables = requiredVariables.filter(
       (variable) => !cleanBody.includes(variable)
@@ -865,19 +903,29 @@ const WhatsApp = ({ onBack }) => {
   const selectedTemplate = templates[templateEditType];
   const selectedTemplateDraft = templateDrafts[templateEditType];
 
-  const activePendingCount =
-    activeSendType === "redemption"
-      ? availablePayouts.length
-      : availableRewardEntries.length;
+  let activePendingCount = 0;
+  let activeSelectedId = null;
 
-  const activeSelectedId =
-    activeSendType === "redemption" ? selectedPayoutId : selectedRewardEntryId;
+  if (activeSendType === "welcome") {
+      activePendingCount = customers.length;
+      activeSelectedId = selectedCustomerId;
+  } else if (activeSendType === "redemption") {
+      activePendingCount = availablePayouts.length;
+      activeSelectedId = selectedPayoutId;
+  } else {
+      activePendingCount = availableRewardEntries.length;
+      activeSelectedId = selectedRewardEntryId;
+  }
 
   const isActiveSending =
     sendingType === activeSendType && sendingId === String(activeSelectedId);
 
   const getHistoryPointText = (log) => {
     const logType = getLogType(log);
+
+    if (logType === "welcome") {
+        return "N/A";
+    }
 
     if (logType === "redemption") {
       return `-${formatPoints(
@@ -895,6 +943,9 @@ const WhatsApp = ({ onBack }) => {
   const getHistoryRecordId = (log) => {
     const logType = getLogType(log);
 
+    if (logType === "welcome") {
+        return log.customer_id;
+    }
     if (logType === "redemption") {
       return log.payout_id || log.redemption_id;
     }
@@ -938,7 +989,7 @@ const WhatsApp = ({ onBack }) => {
             <div>
               <h1 className="asw-title">WhatsApp Messaging</h1>
               <p className="asw-subtitle">
-                Send reward and redemption WhatsApp messages, view message
+                Send reward, redemption, and welcome WhatsApp messages, view message
                 history, track estimated messaging spend, and manage approved
                 template preview text.
               </p>
@@ -1018,8 +1069,7 @@ const WhatsApp = ({ onBack }) => {
               <div>
                 <h2 className="asw-card-title">Send WhatsApp Message</h2>
                 <p className="asw-card-subtitle">
-                  Select reward points or redemption points and send the
-                  approved WhatsApp utility template manually.
+                  Select a category below to send an approved WhatsApp template manually.
                 </p>
               </div>
 
@@ -1029,6 +1079,17 @@ const WhatsApp = ({ onBack }) => {
             </div>
 
             <div className="asw-send-type-row">
+              <button
+                type="button"
+                className={`asw-type-btn ${
+                  activeSendType === "welcome" ? "active" : ""
+                }`}
+                onClick={() => setActiveSendType("welcome")}
+              >
+                <FiHeart />
+                Welcome Message
+              </button>
+
               <button
                 type="button"
                 className={`asw-type-btn ${
@@ -1054,7 +1115,52 @@ const WhatsApp = ({ onBack }) => {
 
             <div className="asw-send-grid">
               <div className="asw-send-form">
-                {activeSendType === "reward" ? (
+                
+                {activeSendType === "welcome" && (
+                  <>
+                    <div className="asw-form-group">
+                      <label>Customer</label>
+                      <select
+                        value={selectedCustomerId}
+                        onChange={(event) =>
+                          setSelectedCustomerId(event.target.value)
+                        }
+                        disabled={customers.length === 0}
+                      >
+                        <option value="">
+                          {customers.length === 0
+                            ? "No customers found"
+                            : "Select customer"}
+                        </option>
+
+                        {customers.map((customer) => (
+                            <option key={customer.id} value={customer.id}>
+                              {customer.name || "Customer"} - {customer.phone_number || "No Phone"}
+                            </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {selectedCustomer ? (
+                      <div className="asw-selected-box">
+                        <div>
+                          <span>Customer</span>
+                          <strong>{selectedCustomer.name || "-"}</strong>
+                        </div>
+                        <div>
+                          <span>Phone</span>
+                          <strong>{selectedCustomer.phone_number || "-"}</strong>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="asw-empty-inline">
+                        No customer selected.
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {activeSendType === "reward" && (
                   <>
                     <div className="asw-form-group">
                       <label>Reward Transaction</label>
@@ -1131,7 +1237,9 @@ const WhatsApp = ({ onBack }) => {
                       </div>
                     )}
                   </>
-                ) : (
+                )}
+
+                {activeSendType === "redemption" && (
                   <>
                     <div className="asw-form-group">
                       <label>Redemption / Payout Transaction</label>
@@ -1232,6 +1340,8 @@ const WhatsApp = ({ onBack }) => {
                   <FiSend />
                   {isActiveSending
                     ? "Sending..."
+                    : activeSendType === "welcome"
+                    ? "Send Welcome WhatsApp"
                     : activeSendType === "redemption"
                     ? "Send Redemption WhatsApp"
                     : "Send Reward WhatsApp"}
@@ -1265,7 +1375,7 @@ const WhatsApp = ({ onBack }) => {
                   <br />
                   Rule:{" "}
                   <strong>
-                    Sent transactions are removed from Send list
+                    {activeSendType === "welcome" ? "Duplicate Welcome sends must be confirmed" : "Sent transactions are removed from Send list"}
                   </strong>
                 </div>
               </div>
@@ -1279,7 +1389,7 @@ const WhatsApp = ({ onBack }) => {
               <div>
                 <h2 className="asw-card-title">WhatsApp Message History</h2>
                 <p className="asw-card-subtitle">
-                  Showing latest reward and redemption WhatsApp logs from
+                  Showing latest WhatsApp logs from
                   backend with estimated spend.
                 </p>
               </div>
@@ -1306,6 +1416,7 @@ const WhatsApp = ({ onBack }) => {
                 onChange={(event) => setHistoryTypeFilter(event.target.value)}
               >
                 <option value="all">All Message Types</option>
+                <option value="welcome">Welcome Messages</option>
                 <option value="reward">Reward Points</option>
                 <option value="redemption">Redemption Points</option>
               </select>
@@ -1374,7 +1485,9 @@ const WhatsApp = ({ onBack }) => {
                               <span
                                 className={`asw-type-pill asw-type-${logType}`}
                               >
-                                {logType === "redemption" ? (
+                                {logType === "welcome" ? (
+                                    <FiHeart />
+                                ) : logType === "redemption" ? (
                                   <FiDollarSign />
                                 ) : (
                                   <FiAward />
@@ -1411,6 +1524,8 @@ const WhatsApp = ({ onBack }) => {
                                 className={`asw-points ${
                                   logType === "redemption"
                                     ? "asw-points-red"
+                                    : logType === "welcome"
+                                    ? "asw-points-gray" 
                                     : "asw-points-green"
                                 }`}
                               >
@@ -1512,7 +1627,9 @@ const WhatsApp = ({ onBack }) => {
 
                         <div className="asw-mobile-meta">
                           <span>
-                            {logType === "redemption" ? (
+                            {logType === "welcome" ? (
+                                <FiHeart />
+                            ) : logType === "redemption" ? (
                               <FiDollarSign />
                             ) : (
                               <FiAward />
@@ -1592,6 +1709,17 @@ const WhatsApp = ({ onBack }) => {
               <button
                 type="button"
                 className={`asw-type-btn ${
+                  templateEditType === "welcome" ? "active" : ""
+                }`}
+                onClick={() => setTemplateEditType("welcome")}
+              >
+                <FiHeart />
+                Welcome Template
+              </button>
+
+              <button
+                type="button"
+                className={`asw-type-btn ${
                   templateEditType === "reward" ? "active" : ""
                 }`}
                 onClick={() => setTemplateEditType("reward")}
@@ -1619,7 +1747,9 @@ const WhatsApp = ({ onBack }) => {
                 </div>
 
                 <h3>
-                  {templateEditType === "redemption"
+                  {templateEditType === "welcome"
+                    ? "Welcome Message"
+                    : templateEditType === "redemption"
                     ? "Redemption Points Update"
                     : "Reward Points Update"}
                 </h3>
@@ -1635,18 +1765,25 @@ const WhatsApp = ({ onBack }) => {
                     </div>
 
                     <ul className="asw-clean-list">
-                      <li>{"{{1}}"} Customer Name</li>
-                      <li>
-                        {"{{2}}"}{" "}
-                        {templateEditType === "redemption"
-                          ? "Redeemed Points"
-                          : "Added Points"}
-                      </li>
-                      <li>{"{{3}}"} Store Name</li>
-                      <li>{"{{4}}"} Total Points</li>
-                      {templateEditType === "redemption" ? (
-                        <li>{"{{5}}"} Payout Amount</li>
-                      ) : null}
+                      {templateEditType !== "welcome" && (
+                          <>
+                              <li>{"{{1}}"} Customer Name</li>
+                              <li>
+                                {"{{2}}"}{" "}
+                                {templateEditType === "redemption"
+                                  ? "Redeemed Points"
+                                  : "Added Points"}
+                              </li>
+                              <li>{"{{3}}"} Store Name</li>
+                              <li>{"{{4}}"} Total Points</li>
+                              {templateEditType === "redemption" ? (
+                                <li>{"{{5}}"} Payout Amount</li>
+                              ) : null}
+                          </>
+                      )}
+                      {templateEditType === "welcome" && (
+                          <li>Standard Welcome Template generally uses no variables, or requires exact matching with Meta.</li>
+                      )}
                     </ul>
                   </>
                 ) : (
@@ -1695,19 +1832,25 @@ const WhatsApp = ({ onBack }) => {
                     </div>
 
                     <div className="asw-template-help">
-                      Required variables: <strong>{"{{1}}"}</strong> customer
-                      name, <strong>{"{{2}}"}</strong>{" "}
-                      {templateEditType === "redemption"
-                        ? "redeemed points"
-                        : "added points"}
-                      , <strong>{"{{3}}"}</strong> store name,{" "}
-                      <strong>{"{{4}}"}</strong> total points
-                      {templateEditType === "redemption" ? (
-                        <>
-                          , <strong>{"{{5}}"}</strong> payout amount
-                        </>
-                      ) : null}
-                      .
+                      {templateEditType !== "welcome" ? (
+                          <>
+                              Required variables: <strong>{"{{1}}"}</strong> customer
+                              name, <strong>{"{{2}}"}</strong>{" "}
+                              {templateEditType === "redemption"
+                                ? "redeemed points"
+                                : "added points"}
+                              , <strong>{"{{3}}"}</strong> store name,{" "}
+                              <strong>{"{{4}}"}</strong> total points
+                              {templateEditType === "redemption" ? (
+                                <>
+                                  , <strong>{"{{5}}"}</strong> payout amount
+                                </>
+                              ) : null}
+                              .
+                          </>
+                      ) : (
+                          <>Welcome messages may not require dynamic variables depending on your Meta approved template.</>
+                      )}
                     </div>
 
                     <div className="asw-template-actions">
@@ -1746,7 +1889,7 @@ const WhatsApp = ({ onBack }) => {
 
                 <h3>Preview</h3>
                 <p className="asw-card-subtitle">
-                  Preview is generated using the selected transaction.
+                  Preview is generated using the selected transaction or customer.
                 </p>
 
                 <div className="asw-template-body preview">
@@ -1806,6 +1949,12 @@ const WhatsApp = ({ onBack }) => {
                     Redemption message spend:{" "}
                     <strong>
                       {formatSpend(totals.redemptionSpend, totals.currency)}
+                    </strong>
+                  </li>
+                  <li>
+                    Welcome message spend:{" "}
+                    <strong>
+                      {formatSpend(totals.welcomeSpend, totals.currency)}
                     </strong>
                   </li>
                   <li>
@@ -1871,6 +2020,8 @@ const WhatsApp = ({ onBack }) => {
                 </p>
 
                 <div className="asw-code-box">
+                  WHATSAPP_AUTO_SEND_WELCOME=true
+                  <br />
                   WHATSAPP_AUTO_SEND_REWARD=true
                   <br />
                   WHATSAPP_AUTO_SEND_REDEMPTION=true
@@ -2508,6 +2659,11 @@ const whatsappPageCss = `
     color: #ea580c;
   }
 
+  .asw-type-welcome {
+    background: #fdf2f8;
+    color: #db2777;
+  }
+
   .asw-customer {
     display: flex;
     align-items: center;
@@ -2566,6 +2722,11 @@ const whatsappPageCss = `
   .asw-points-red {
     background: #fee2e2;
     color: #dc2626;
+  }
+
+  .asw-points-gray {
+    background: #f1f5f9;
+    color: #475569;
   }
 
   .asw-status {

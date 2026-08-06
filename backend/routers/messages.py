@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 import models
 import schemas
@@ -23,6 +24,7 @@ from services.whatsapp_service import (
     safe_provider_response_text,
     send_redemption_points_whatsapp,
     send_reward_points_whatsapp,
+    send_welcome_whatsapp,
 )
 
 
@@ -33,6 +35,11 @@ router = APIRouter(
 
 
 BILLABLE_STATUSES = {"sent", "delivered", "read"}
+
+
+# A local request model for the Welcome message to avoid breaking schemas.py
+class WhatsAppWelcomeSendRequest(BaseModel):
+    allow_resend: bool = False
 
 
 def _safe_float(value, default: float = 0.0) -> float:
@@ -202,6 +209,117 @@ def _base_log_query_for_user(
         )
 
     return query
+
+
+def send_welcome_whatsapp_core(
+    *,
+    customer_id: int,
+    allow_resend: bool,
+    db: Session,
+    current_user: dict,
+) -> dict:
+    db_user = get_current_db_user(db, current_user)
+
+    customer = db.query(models.Customer).filter(
+        models.Customer.id == customer_id
+    ).first()
+
+    if not customer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer not found",
+        )
+
+    check_store_access(current_user, customer.store_id)
+
+    if not customer.phone_number:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Customer phone number is missing",
+        )
+
+    store = None
+    if customer.store_id is not None:
+        store = db.query(models.Store).filter(
+            models.Store.id == customer.store_id
+        ).first()
+    store_name = getattr(store, "name", None) or "AeroState Rewards"
+
+    existing_sent_log = db.query(models.WhatsAppMessageLog).filter(
+        models.WhatsAppMessageLog.customer_id == customer.id,
+        models.WhatsAppMessageLog.message_type == "welcome_message",
+        models.WhatsAppMessageLog.status.in_(["sent", "delivered", "read"]),
+    ).order_by(
+        desc(models.WhatsAppMessageLog.created_at)
+    ).first()
+
+    if existing_sent_log and not allow_resend:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "WhatsApp welcome message already sent to this customer. "
+                "Confirm resend to send again."
+            ),
+        )
+
+    normalized_phone = normalize_indian_phone(customer.phone_number)
+    message_preview = f"Welcome message to {customer.name or 'Customer'} at {store_name}"
+
+    log = models.WhatsAppMessageLog(
+        store_id=customer.store_id,
+        customer_id=customer.id,
+        reward_entry_id=None,
+        payout_id=None,
+        message_type="welcome_message",
+        sent_by_user_id=db_user.id,
+        phone_number=normalized_phone,
+        template_name=None,
+        template_language=None,
+        message_preview=message_preview,
+        added_points=0.0,
+        redeemed_points=0.0,
+        payout_value=0.0,
+        total_points=_safe_float(customer.points_balance, 0.0),
+        message_cost=0.0,
+        cost_currency=get_whatsapp_cost_currency(),
+        billing_status="pending",
+        status="pending",
+        provider_message_id=None,
+        error_message=None,
+        provider_response=None,
+        sent_at=None,
+    )
+
+    db.add(log)
+    db.commit()
+    db.refresh(log)
+
+    result = send_welcome_whatsapp(
+        to_phone_number=customer.phone_number,
+        customer_name=customer.name,
+    )
+
+    _apply_send_result_to_log(log=log, result=result)
+
+    db.commit()
+    db.refresh(log)
+
+    return {
+        "success": bool(result.get("success")),
+        "log_id": log.id,
+        "message_type": "welcome_message",
+        "customer_id": customer.id,
+        "customer_name": customer.name,
+        "phone_number": log.phone_number,
+        "message_cost": _get_log_message_cost(log),
+        "cost_currency": _get_log_cost_currency(log),
+        "billing_status": _get_log_billing_status(log),
+        "status": log.status,
+        "message_preview": log.message_preview,
+        "provider_message_id": log.provider_message_id,
+        "error_message": log.error_message,
+        "sent_at": log.sent_at,
+    }
 
 
 def send_reward_entry_whatsapp_core(
@@ -459,6 +577,25 @@ def send_payout_whatsapp_core(
 
 
 @router.post(
+    "/customer/{customer_id}/whatsapp/welcome",
+)
+def send_customer_welcome_message(
+    customer_id: int,
+    request_data: Optional[WhatsAppWelcomeSendRequest] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    allow_resend = bool(getattr(request_data, "allow_resend", False))
+
+    return send_welcome_whatsapp_core(
+        customer_id=customer_id,
+        allow_resend=allow_resend,
+        db=db,
+        current_user=current_user,
+    )
+
+
+@router.post(
     "/reward-entry/{reward_entry_id}/whatsapp/send",
     response_model=schemas.WhatsAppRewardSendResponse,
 )
@@ -576,10 +713,12 @@ def get_whatsapp_spend_summary(
         "pending_messages": 0,
         "reward_messages": 0,
         "redemption_messages": 0,
+        "welcome_messages": 0,
         "billable_messages": 0,
         "total_estimated_spend": 0.0,
         "reward_estimated_spend": 0.0,
         "redemption_estimated_spend": 0.0,
+        "welcome_estimated_spend": 0.0,
         "cost_per_message": get_whatsapp_cost_per_message(),
         "cost_currency": get_whatsapp_cost_currency(),
         "billing_status": "estimated",
@@ -607,8 +746,11 @@ def get_whatsapp_spend_summary(
         else:
             summary["pending_messages"] += 1
 
+        # Categorize Message Types
         if "redemption" in message_type or "payout" in message_type:
             summary["redemption_messages"] += 1
+        elif "welcome" in message_type:
+            summary["welcome_messages"] += 1
         else:
             summary["reward_messages"] += 1
 
@@ -618,22 +760,19 @@ def get_whatsapp_spend_summary(
 
             if "redemption" in message_type or "payout" in message_type:
                 summary["redemption_estimated_spend"] += cost
+            elif "welcome" in message_type:
+                summary["welcome_estimated_spend"] += cost
             else:
                 summary["reward_estimated_spend"] += cost
 
-    summary["total_estimated_spend"] = round(
-        summary["total_estimated_spend"],
-        2,
-    )
-    summary["reward_estimated_spend"] = round(
-        summary["reward_estimated_spend"],
-        2,
-    )
-    summary["redemption_estimated_spend"] = round(
-        summary["redemption_estimated_spend"],
-        2,
-    )
+    summary["total_estimated_spend"] = round(summary["total_estimated_spend"], 2)
+    summary["reward_estimated_spend"] = round(summary["reward_estimated_spend"], 2)
+    summary["redemption_estimated_spend"] = round(summary["redemption_estimated_spend"], 2)
+    summary["welcome_estimated_spend"] = round(summary["welcome_estimated_spend"], 2)
 
+    # Note: If your schemas.WhatsAppSpendSummaryResponse throws a validation error 
+    # about extra parameters (welcome_messages), you will need to add those keys 
+    # directly to the Pydantic schema in your schemas.py file.
     return schemas.WhatsAppSpendSummaryResponse(**summary)
 
 

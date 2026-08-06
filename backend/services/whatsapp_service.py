@@ -18,20 +18,22 @@ def whatsapp_mock_enabled() -> bool:
     return _env_true(os.getenv("WHATSAPP_MOCK", "false"))
 
 
-def get_whatsapp_cost_per_message() -> float:
+def get_whatsapp_cost_per_message(template_category: str = "utility") -> float:
     """
-    Estimated cost per successful WhatsApp message.
-
-    For your current plan:
-    0.11 = ₹0.11 = 11 paisa per message.
-
-    Put this in backend .env:
-    WHATSAPP_COST_PER_MESSAGE=0.11
+    Estimated cost per successful WhatsApp message based on Meta's pricing tiers.
+    Marketing templates are significantly more expensive than Utility templates.
     """
+    if template_category == "marketing":
+        env_var = "WHATSAPP_COST_MARKETING"
+        default_cost = 0.88 # Approx ₹0.88 for Marketing in India
+    else:
+        env_var = "WHATSAPP_COST_UTILITY"
+        default_cost = 0.11 # Approx ₹0.11 for Utility in India
+
     try:
-        value = float(os.getenv("WHATSAPP_COST_PER_MESSAGE", "0.11") or 0.11)
+        value = float(os.getenv(env_var, str(default_cost)) or default_cost)
     except (TypeError, ValueError):
-        value = 0.11
+        value = default_cost
 
     if value < 0:
         return 0.0
@@ -43,14 +45,14 @@ def get_whatsapp_cost_currency() -> str:
     return os.getenv("WHATSAPP_COST_CURRENCY", "INR").strip() or "INR"
 
 
-def _billable_cost_for_result(success: bool, is_mock: bool = False) -> float:
+def _billable_cost_for_result(success: bool, is_mock: bool = False, template_category: str = "utility") -> float:
     if is_mock:
         return 0.0
 
     if not success:
         return 0.0
 
-    return get_whatsapp_cost_per_message()
+    return get_whatsapp_cost_per_message(template_category)
 
 
 def _billing_status_for_result(success: bool, is_mock: bool = False) -> str:
@@ -205,6 +207,7 @@ def _base_response(
     template_name: str,
     template_language: str,
     normalized_phone: str,
+    template_category: str = "utility",
     is_mock: bool = False,
 ) -> Dict[str, Any]:
     return {
@@ -216,7 +219,7 @@ def _base_response(
         "template_name": template_name,
         "template_language": template_language,
         "normalized_phone": normalized_phone,
-        "message_cost": _billable_cost_for_result(success, is_mock=is_mock),
+        "message_cost": _billable_cost_for_result(success, is_mock=is_mock, template_category=template_category),
         "cost_currency": get_whatsapp_cost_currency(),
         "billing_status": _billing_status_for_result(success, is_mock=is_mock),
     }
@@ -228,6 +231,7 @@ def _send_whatsapp_template(
     template_name: str,
     template_language: str,
     template_parameters: list[dict],
+    template_category: str = "utility",
 ) -> Dict[str, Any]:
     phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "").strip()
     access_token = os.getenv("WHATSAPP_ACCESS_TOKEN", "").strip()
@@ -244,6 +248,7 @@ def _send_whatsapp_template(
             template_name=template_name,
             template_language=template_language,
             normalized_phone=normalized_phone,
+            template_category=template_category,
         )
 
     if whatsapp_mock_enabled():
@@ -265,6 +270,7 @@ def _send_whatsapp_template(
             template_name=template_name,
             template_language=template_language,
             normalized_phone=normalized_phone,
+            template_category=template_category,
             is_mock=True,
         )
 
@@ -281,6 +287,7 @@ def _send_whatsapp_template(
             template_name=template_name,
             template_language=template_language,
             normalized_phone=normalized_phone,
+            template_category=template_category,
         )
 
     if not phone_number_id:
@@ -293,6 +300,7 @@ def _send_whatsapp_template(
             template_name=template_name,
             template_language=template_language,
             normalized_phone=normalized_phone,
+            template_category=template_category,
         )
 
     if not access_token:
@@ -305,6 +313,7 @@ def _send_whatsapp_template(
             template_name=template_name,
             template_language=template_language,
             normalized_phone=normalized_phone,
+            template_category=template_category,
         )
 
     graph_api_version = os.getenv("WHATSAPP_GRAPH_API_VERSION", "v20.0").strip()
@@ -324,7 +333,7 @@ def _send_whatsapp_template(
                     "type": "body",
                     "parameters": template_parameters,
                 }
-            ],
+            ] if template_parameters else [],
         },
     }
 
@@ -352,6 +361,7 @@ def _send_whatsapp_template(
             template_name=template_name,
             template_language=template_language,
             normalized_phone=normalized_phone,
+            template_category=template_category,
         )
 
     except urllib.error.HTTPError as exc:
@@ -374,6 +384,7 @@ def _send_whatsapp_template(
             template_name=template_name,
             template_language=template_language,
             normalized_phone=normalized_phone,
+            template_category=template_category,
         )
 
     except Exception as exc:
@@ -386,7 +397,35 @@ def _send_whatsapp_template(
             template_name=template_name,
             template_language=template_language,
             normalized_phone=normalized_phone,
+            template_category=template_category,
         )
+
+
+def send_welcome_whatsapp(
+    *,
+    to_phone_number: str,
+    customer_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Sends approved welcome WhatsApp utility template to a new customer.
+    """
+    template_name = os.getenv("WHATSAPP_TEMPLATE_WELCOME", "hello_world").strip()
+    
+    # Meta dashboard indicated hello_world was approved in English (US)
+    template_language = os.getenv("WHATSAPP_TEMPLATE_WELCOME_LANGUAGE", "en_US").strip()
+
+    # The standard 'hello_world' template usually takes zero parameters, 
+    # but if yours uses a variable like {{1}} for the name, leave this block.
+    # If the API fails with "incorrect number of parameters", change this to: template_parameters = []
+    template_parameters = []
+
+    return _send_whatsapp_template(
+        to_phone_number=to_phone_number,
+        template_name=template_name,
+        template_language=template_language,
+        template_parameters=template_parameters,
+        template_category="utility"
+    )
 
 
 def send_reward_points_whatsapp(
@@ -398,30 +437,14 @@ def send_reward_points_whatsapp(
     total_points: float,
 ) -> Dict[str, Any]:
     """
-    Sends approved reward-points WhatsApp utility template from one central number.
-
-    Required live .env:
-    WHATSAPP_ENABLED=true
-    WHATSAPP_MOCK=false
-    WHATSAPP_ACCESS_TOKEN=...
-    WHATSAPP_PHONE_NUMBER_ID=...
-    WHATSAPP_TEMPLATE_REWARD_POINTS=reward_points_update
-    WHATSAPP_TEMPLATE_LANGUAGE=en
-    WHATSAPP_COST_PER_MESSAGE=0.11
-
-    Local testing:
-    WHATSAPP_MOCK=true
+    Sends approved reward-points WhatsApp marketing template from one central number.
     """
-
     template_name = os.getenv(
         "WHATSAPP_TEMPLATE_REWARD_POINTS",
         os.getenv("WHATSAPP_REWARD_TEMPLATE", "reward_points_update"),
     ).strip()
 
-    template_language = os.getenv(
-        "WHATSAPP_TEMPLATE_LANGUAGE",
-        "en",
-    ).strip()
+    template_language = os.getenv("WHATSAPP_TEMPLATE_LANGUAGE", "en").strip()
 
     template_parameters = [
         {
@@ -447,6 +470,7 @@ def send_reward_points_whatsapp(
         template_name=template_name,
         template_language=template_language,
         template_parameters=template_parameters,
+        template_category="marketing",  # Crucial for accurate billing
     )
 
 
@@ -461,24 +485,7 @@ def send_redemption_points_whatsapp(
 ) -> Dict[str, Any]:
     """
     Sends approved redemption/payout WhatsApp utility template from one central number.
-
-    Required live .env:
-    WHATSAPP_ENABLED=true
-    WHATSAPP_MOCK=false
-    WHATSAPP_ACCESS_TOKEN=...
-    WHATSAPP_PHONE_NUMBER_ID=...
-    WHATSAPP_TEMPLATE_REDEMPTION_POINTS=redemption_points_update
-    WHATSAPP_TEMPLATE_LANGUAGE=en
-    WHATSAPP_COST_PER_MESSAGE=0.11
-
-    Template body should match 5 variables:
-    {{1}} Customer Name
-    {{2}} Redeemed Points
-    {{3}} Store Name
-    {{4}} Total Points
-    {{5}} Payout Amount
     """
-
     template_name = os.getenv(
         "WHATSAPP_TEMPLATE_REDEMPTION_POINTS",
         os.getenv(
@@ -487,10 +494,7 @@ def send_redemption_points_whatsapp(
         ),
     ).strip()
 
-    template_language = os.getenv(
-        "WHATSAPP_TEMPLATE_LANGUAGE",
-        "en",
-    ).strip()
+    template_language = os.getenv("WHATSAPP_TEMPLATE_LANGUAGE", "en").strip()
 
     template_parameters = [
         {
@@ -520,6 +524,7 @@ def send_redemption_points_whatsapp(
         template_name=template_name,
         template_language=template_language,
         template_parameters=template_parameters,
+        template_category="utility",
     )
 
 

@@ -108,6 +108,10 @@ function TransactionHistory({ onBack }) {
   const [selectedCustomerId, setSelectedCustomerId] = useState("all");
   const [entryType, setEntryType] = useState("all");
 
+  // ----- NEW DATE RANGE STATE -----
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -132,9 +136,10 @@ function TransactionHistory({ onBack }) {
     fetchData();
   }, []);
 
+  // Reset page when filters change (including date range)
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedCustomerId, entryType]);
+  }, [searchTerm, selectedCustomerId, entryType, startDate, endDate]);
 
   const handleBack = () => {
     if (typeof onBack === "function") {
@@ -507,7 +512,21 @@ function TransactionHistory({ onBack }) {
 
       const matchesType = entryType === "all" || type === entryType;
 
-      return matchesSearch && matchesCustomer && matchesType;
+      // ----- DATE RANGE FILTERING -----
+      const txnDate = txn.created_at ? new Date(txn.created_at) : null;
+
+      let matchesDate = true;
+      if (startDate) {
+        const start = new Date(startDate);
+        if (txnDate && txnDate < start) matchesDate = false;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999); // include whole end day
+        if (txnDate && txnDate > end) matchesDate = false;
+      }
+
+      return matchesSearch && matchesCustomer && matchesType && matchesDate;
     });
   }, [
     transactionRecords,
@@ -516,6 +535,8 @@ function TransactionHistory({ onBack }) {
     searchTerm,
     selectedCustomerId,
     entryType,
+    startDate,
+    endDate,
   ]);
 
   const sortedTransactions = useMemo(() => {
@@ -813,6 +834,7 @@ function TransactionHistory({ onBack }) {
           />
         </section>
 
+        {/* UPDATED TOOLBAR WITH DATE INPUTS */}
         <section className="ast-toolbar-card">
           <div className="ast-search-wrapper">
             <FiSearch className="ast-search-icon" />
@@ -823,6 +845,25 @@ function TransactionHistory({ onBack }) {
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               className="ast-search-input"
+            />
+          </div>
+
+          {/* DATE RANGE INPUTS */}
+          <div className="ast-date-group">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="ast-date-input"
+              placeholder="From"
+            />
+            <span className="ast-date-separator">to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="ast-date-input"
+              placeholder="To"
             />
           </div>
 
@@ -851,6 +892,7 @@ function TransactionHistory({ onBack }) {
           </select>
         </section>
 
+        {/* TABLE & MOBILE LISTS (UNCHANGED) */}
         <section className="ast-table-card">
           <div className="ast-table-header">
             <div>
@@ -1097,6 +1139,7 @@ function TransactionHistory({ onBack }) {
           )}
         </section>
 
+        {/* MODALS (UNCHANGED EXCEPT SOME CLOSING LOGIC REFERENCED ABOVE) */}
         {selectedDetailsTxn && (
           <div className="ast-modal-overlay">
             <div className="ast-details-modal-box">
@@ -1476,6 +1519,7 @@ const SummaryCard = ({ icon, iconClass, label, value, valueClass, plain }) => (
   </div>
 );
 
+// ----- UPDATED CSS STRING WITH DATE STYLES AND TOOLBAR GRID -----
 const transactionHistoryCss = `
   .ast-page {
     width: 100%;
@@ -1673,16 +1717,18 @@ const transactionHistoryCss = `
     color: #7c3aed;
   }
 
+  /* ----- TOOLBAR WITH DATE COLUMN ADDED ----- */
   .ast-toolbar-card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 18px;
     padding: 10px;
     display: grid;
-    grid-template-columns: minmax(280px, 1fr) 220px 240px;
+    grid-template-columns: minmax(280px, 1fr) auto 220px 240px;
     gap: 12px;
     margin-bottom: 18px;
     box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+    align-items: center;
   }
 
   .ast-search-wrapper {
@@ -1725,6 +1771,36 @@ const transactionHistoryCss = `
     outline: none;
     min-width: 0;
   }
+
+  /* DATE GROUP STYLES */
+  .ast-date-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 44px;
+  }
+
+  .ast-date-input {
+    height: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 0 10px;
+    font-size: 14px;
+    font-weight: 750;
+    color: #0f172a;
+    background: #ffffff;
+    outline: none;
+    min-width: 130px;
+  }
+
+  .ast-date-separator {
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  /* ----- END DATE STYLES ----- */
 
   .ast-table-card {
     background: #ffffff;
@@ -2343,6 +2419,7 @@ const transactionHistoryCss = `
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    /* Stack toolbar items vertically on tablet */
     .ast-toolbar-card {
       grid-template-columns: 1fr;
     }

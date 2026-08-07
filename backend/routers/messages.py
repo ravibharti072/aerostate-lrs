@@ -294,9 +294,11 @@ def send_welcome_whatsapp_core(
     db.commit()
     db.refresh(log)
 
+    # FIX: Adding store_name here to pass to the WhatsApp service payload
     result = send_welcome_whatsapp(
         to_phone_number=customer.phone_number,
         customer_name=customer.name,
+        store_name=store_name,
     )
 
     _apply_send_result_to_log(log=log, result=result)

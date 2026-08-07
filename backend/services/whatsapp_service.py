@@ -91,7 +91,7 @@ def normalize_indian_phone(phone_number: str) -> str:
     WhatsApp Cloud API expects country code without +.
 
     Examples:
-    9876543210     -> 919876543210
+    9876543210    -> 919876543210
     09876543210    -> 919876543210
     +91 9876543210 -> 919876543210
     """
@@ -405,26 +405,32 @@ def send_welcome_whatsapp(
     *,
     to_phone_number: str,
     customer_name: Optional[str] = None,
+    store_name: Optional[str] = "AeroState Rewards",
 ) -> Dict[str, Any]:
     """
-    Sends approved welcome WhatsApp utility template to a new customer.
+    Sends approved welcome WhatsApp marketing template to a new customer.
     """
-    template_name = os.getenv("WHATSAPP_TEMPLATE_WELCOME", "hello_world").strip()
+    template_name = os.getenv("WHATSAPP_TEMPLATE_WELCOME", "aerostate_welcome").strip()
     
-    # Meta dashboard indicated hello_world was approved in English (US)
-    template_language = os.getenv("WHATSAPP_TEMPLATE_WELCOME_LANGUAGE", "en_US").strip()
+    template_language = os.getenv("WHATSAPP_TEMPLATE_WELCOME_LANGUAGE", "en").strip()
 
-    # The standard 'hello_world' template usually takes zero parameters, 
-    # but if yours uses a variable like {{1}} for the name, leave this block.
-    # If the API fails with "incorrect number of parameters", change this to: template_parameters = []
-    template_parameters = []
+    template_parameters = [
+        {
+            "type": "text",
+            "text": str(customer_name or "Customer"),
+        },
+        {
+            "type": "text",
+            "text": str(store_name),
+        }
+    ]
 
     return _send_whatsapp_template(
         to_phone_number=to_phone_number,
         template_name=template_name,
         template_language=template_language,
         template_parameters=template_parameters,
-        template_category="utility"
+        template_category="marketing"
     )
 
 

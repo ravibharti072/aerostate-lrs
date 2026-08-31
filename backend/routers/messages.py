@@ -243,7 +243,10 @@ def send_welcome_whatsapp_core(
         store = db.query(models.Store).filter(
             models.Store.id == customer.store_id
         ).first()
+
     store_name = getattr(store, "name", None) or "AeroState Rewards"
+    custom_wa_phone_id = getattr(store, "custom_wa_phone_id", None) if store else None
+    custom_wa_access_token = getattr(store, "custom_wa_access_token", None) if store else None
 
     existing_sent_log = db.query(models.WhatsAppMessageLog).filter(
         models.WhatsAppMessageLog.customer_id == customer.id,
@@ -294,11 +297,12 @@ def send_welcome_whatsapp_core(
     db.commit()
     db.refresh(log)
 
-    # FIX: Adding store_name here to pass to the WhatsApp service payload
     result = send_welcome_whatsapp(
         to_phone_number=customer.phone_number,
         customer_name=customer.name,
         store_name=store_name,
+        custom_phone_number_id=custom_wa_phone_id,
+        custom_access_token=custom_wa_access_token,
     )
 
     _apply_send_result_to_log(log=log, result=result)
@@ -364,13 +368,14 @@ def send_reward_entry_whatsapp_core(
         )
 
     store = None
-
     if reward_entry.store_id is not None:
         store = db.query(models.Store).filter(
             models.Store.id == reward_entry.store_id
         ).first()
 
     store_name = getattr(store, "name", None) or "AeroState Rewards"
+    custom_wa_phone_id = getattr(store, "custom_wa_phone_id", None) if store else None
+    custom_wa_access_token = getattr(store, "custom_wa_access_token", None) if store else None
 
     existing_sent_log = db.query(models.WhatsAppMessageLog).filter(
         models.WhatsAppMessageLog.reward_entry_id == reward_entry.id,
@@ -434,6 +439,8 @@ def send_reward_entry_whatsapp_core(
         added_points=added_points,
         store_name=store_name,
         total_points=total_points,
+        custom_phone_number_id=custom_wa_phone_id,
+        custom_access_token=custom_wa_access_token,
     )
 
     _apply_send_result_to_log(log=log, result=result)
@@ -489,13 +496,14 @@ def send_payout_whatsapp_core(
         )
 
     store = None
-
     if payout.store_id is not None:
         store = db.query(models.Store).filter(
             models.Store.id == payout.store_id
         ).first()
 
     store_name = getattr(store, "name", None) or "AeroState Rewards"
+    custom_wa_phone_id = getattr(store, "custom_wa_phone_id", None) if store else None
+    custom_wa_access_token = getattr(store, "custom_wa_access_token", None) if store else None
 
     existing_sent_log = db.query(models.WhatsAppMessageLog).filter(
         models.WhatsAppMessageLog.payout_id == payout.id,
@@ -563,6 +571,8 @@ def send_payout_whatsapp_core(
         store_name=store_name,
         total_points=total_points,
         payout_value=payout_value,
+        custom_phone_number_id=custom_wa_phone_id,
+        custom_access_token=custom_wa_access_token,
     )
 
     _apply_send_result_to_log(log=log, result=result)
@@ -772,9 +782,6 @@ def get_whatsapp_spend_summary(
     summary["redemption_estimated_spend"] = round(summary["redemption_estimated_spend"], 2)
     summary["welcome_estimated_spend"] = round(summary["welcome_estimated_spend"], 2)
 
-    # Note: If your schemas.WhatsAppSpendSummaryResponse throws a validation error 
-    # about extra parameters (welcome_messages), you will need to add those keys 
-    # directly to the Pydantic schema in your schemas.py file.
     return schemas.WhatsAppSpendSummaryResponse(**summary)
 
 

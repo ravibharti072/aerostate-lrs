@@ -23,6 +23,10 @@ class Store(Base):
     city = Column(String, nullable=True)
     state = Column(String, nullable=True)
     pincode = Column(String, nullable=True)
+    
+    # Custom WhatsApp Credentials
+    custom_wa_phone_id = Column(String, nullable=True)
+    custom_wa_access_token = Column(String, nullable=True)
 
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

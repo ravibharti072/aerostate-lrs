@@ -14,21 +14,16 @@ def whatsapp_enabled() -> bool:
 
 
 def whatsapp_mock_enabled() -> bool:
-    # Useful for local testing without real Meta API credentials.
     return _env_true(os.getenv("WHATSAPP_MOCK", "false"))
 
 
 def get_whatsapp_cost_per_message(template_category: str = "utility") -> float:
-    """
-    Estimated cost per successful WhatsApp message based on Meta's pricing tiers.
-    Marketing templates are significantly more expensive than Utility templates.
-    """
     if template_category == "marketing":
         env_var = "WHATSAPP_COST_MARKETING"
-        default_cost = 0.88 # Approx ₹0.88 for Marketing in India
+        default_cost = 0.88
     else:
         env_var = "WHATSAPP_COST_UTILITY"
-        default_cost = 0.11 # Approx ₹0.11 for Utility in India
+        default_cost = 0.11
 
     try:
         value = float(os.getenv(env_var, str(default_cost)) or default_cost)
@@ -46,22 +41,16 @@ def get_whatsapp_cost_currency() -> str:
 
 
 def _billable_cost_for_result(success: bool, is_mock: bool = False, template_category: str = "utility") -> float:
-    if is_mock:
+    if is_mock or not success:
         return 0.0
-
-    if not success:
-        return 0.0
-
     return get_whatsapp_cost_per_message(template_category)
 
 
 def _billing_status_for_result(success: bool, is_mock: bool = False) -> str:
     if is_mock:
         return "mock"
-
     if success:
         return "estimated"
-
     return "not_billable_failed"
 
 
@@ -87,14 +76,6 @@ def format_money(value: Any) -> str:
 
 
 def normalize_indian_phone(phone_number: str) -> str:
-    """
-    WhatsApp Cloud API expects country code without +.
-
-    Examples:
-    9876543210    -> 919876543210
-    09876543210    -> 919876543210
-    +91 9876543210 -> 919876543210
-    """
     digits = "".join(ch for ch in str(phone_number or "") if ch.isdigit())
 
     if len(digits) == 10:
@@ -155,10 +136,8 @@ def _extract_provider_message_id(response_data: Any) -> Optional[str]:
         return None
 
     messages = response_data.get("messages")
-
     if isinstance(messages, list) and messages:
         first_message = messages[0]
-
         if isinstance(first_message, dict):
             return first_message.get("id")
 
@@ -170,7 +149,6 @@ def _extract_whatsapp_error_message(error_data: Any, fallback: str) -> str:
         return fallback
 
     error = error_data.get("error")
-
     if isinstance(error, dict):
         message = error.get("message")
         error_type = error.get("type")
@@ -178,16 +156,12 @@ def _extract_whatsapp_error_message(error_data: Any, fallback: str) -> str:
         error_subcode = error.get("error_subcode")
 
         parts = []
-
         if message:
             parts.append(str(message))
-
         if error_type:
             parts.append(f"type={error_type}")
-
         if error_code:
             parts.append(f"code={error_code}")
-
         if error_subcode:
             parts.append(f"subcode={error_subcode}")
 
@@ -232,9 +206,12 @@ def _send_whatsapp_template(
     template_language: str,
     template_parameters: list[dict],
     template_category: str = "utility",
+    custom_phone_number_id: Optional[str] = None,
+    custom_access_token: Optional[str] = None,
 ) -> Dict[str, Any]:
-    phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "").strip()
-    access_token = os.getenv("WHATSAPP_ACCESS_TOKEN", "").strip()
+    # Fallback to .env central number if store credentials are not passed
+    phone_number_id = (custom_phone_number_id or os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")).strip()
+    access_token = (custom_access_token or os.getenv("WHATSAPP_ACCESS_TOKEN", "")).strip()
 
     normalized_phone = normalize_indian_phone(to_phone_number)
 
@@ -294,7 +271,7 @@ def _send_whatsapp_template(
         return _base_response(
             success=False,
             status="failed",
-            error_message="WHATSAPP_PHONE_NUMBER_ID is missing in backend .env.",
+            error_message="WHATSAPP_PHONE_NUMBER_ID is missing.",
             provider_message_id=None,
             provider_response=None,
             template_name=template_name,
@@ -307,7 +284,7 @@ def _send_whatsapp_template(
         return _base_response(
             success=False,
             status="failed",
-            error_message="WHATSAPP_ACCESS_TOKEN is missing in backend .env.",
+            error_message="WHATSAPP_ACCESS_TOKEN is missing.",
             provider_message_id=None,
             provider_response=None,
             template_name=template_name,
@@ -366,7 +343,6 @@ def _send_whatsapp_template(
 
     except urllib.error.HTTPError as exc:
         error_body = exc.read().decode("utf-8", errors="replace")
-
         try:
             error_data = json.loads(error_body)
         except Exception:
@@ -406,12 +382,10 @@ def send_welcome_whatsapp(
     to_phone_number: str,
     customer_name: Optional[str] = None,
     store_name: Optional[str] = "AeroState Rewards",
+    custom_phone_number_id: Optional[str] = None,
+    custom_access_token: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Sends approved welcome WhatsApp marketing template to a new customer.
-    """
     template_name = os.getenv("WHATSAPP_TEMPLATE_WELCOME", "aerostate_welcome").strip()
-    
     template_language = os.getenv("WHATSAPP_TEMPLATE_WELCOME_LANGUAGE", "en").strip()
 
     template_parameters = [
@@ -430,7 +404,9 @@ def send_welcome_whatsapp(
         template_name=template_name,
         template_language=template_language,
         template_parameters=template_parameters,
-        template_category="marketing"
+        template_category="marketing",
+        custom_phone_number_id=custom_phone_number_id,
+        custom_access_token=custom_access_token,
     )
 
 
@@ -441,10 +417,9 @@ def send_reward_points_whatsapp(
     added_points: float,
     store_name: str,
     total_points: float,
+    custom_phone_number_id: Optional[str] = None,
+    custom_access_token: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Sends approved reward-points WhatsApp marketing template from one central number.
-    """
     template_name = os.getenv(
         "WHATSAPP_TEMPLATE_REWARD_POINTS",
         os.getenv("WHATSAPP_REWARD_TEMPLATE", "reward_points_update"),
@@ -476,7 +451,9 @@ def send_reward_points_whatsapp(
         template_name=template_name,
         template_language=template_language,
         template_parameters=template_parameters,
-        template_category="marketing",  # Crucial for accurate billing
+        template_category="marketing",
+        custom_phone_number_id=custom_phone_number_id,
+        custom_access_token=custom_access_token,
     )
 
 
@@ -488,10 +465,9 @@ def send_redemption_points_whatsapp(
     store_name: str,
     total_points: float,
     payout_value: Optional[float] = None,
+    custom_phone_number_id: Optional[str] = None,
+    custom_access_token: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    Sends approved redemption/payout WhatsApp utility template from one central number.
-    """
     template_name = os.getenv(
         "WHATSAPP_TEMPLATE_REDEMPTION_POINTS",
         os.getenv(
@@ -531,9 +507,10 @@ def send_redemption_points_whatsapp(
         template_language=template_language,
         template_parameters=template_parameters,
         template_category="utility",
+        custom_phone_number_id=custom_phone_number_id,
+        custom_access_token=custom_access_token,
     )
 
 
 def safe_provider_response_text(provider_response: Any) -> str:
-    # Never include access token or secret here.
     return _safe_json_text(provider_response, max_length=2000)

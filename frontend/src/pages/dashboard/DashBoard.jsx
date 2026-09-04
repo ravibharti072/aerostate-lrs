@@ -17,7 +17,7 @@ import WhatsAppCard from "../../components/whatsappcard/WhatsAppCard";
 import RecentRedemptionsCard from "../../components/recentredemptionscard/RecentRedemptionsCard";
 import SystemMilestonesCard from "../../components/systemmilestonescard/SystemMilestonesCard";
 
-import "./dashBoard.css";
+import "./dashboard.css";
 
 const formatNumber = (value) => {
   const numberValue = Number(value || 0);

@@ -34,25 +34,39 @@ router = APIRouter(
 )
 
 
-BILLABLE_STATUSES = {"sent", "delivered", "read"}
+BILLABLE_STATUSES = {"sent", "delivered", "read", "success", "completed", "ok"}
 
 
-# A local request model for the Welcome message to avoid breaking schemas.py
+# Local request model for Welcome messages to avoid breaking schemas.py
 class WhatsAppWelcomeSendRequest(BaseModel):
     allow_resend: bool = False
 
 
 def _safe_float(value, default: float = 0.0) -> float:
     try:
-        number = float(value or 0)
+        if value is None:
+            return default
+        return float(value)
     except (TypeError, ValueError):
         return default
 
-    return number
+
+def _is_billable_log(log: models.WhatsAppMessageLog) -> bool:
+    status_str = str(log.status or "").strip().lower()
+    if status_str in {"failed", "not_billable_failed"}:
+        return False
+    # Verified delivered or confirmed by provider message ID / sent_at timestamp
+    if status_str in BILLABLE_STATUSES or getattr(log, "provider_message_id", None) or getattr(log, "sent_at", None):
+        return True
+    return False
 
 
 def _get_log_message_cost(log: models.WhatsAppMessageLog) -> float:
-    return _safe_float(getattr(log, "message_cost", 0.0), 0.0)
+    cost = _safe_float(getattr(log, "message_cost", 0.0), 0.0)
+    # If the database recorded 0.0 for a verified billable log, fallback to the standard rate (0.88)
+    if cost <= 0.0 and _is_billable_log(log):
+        return _safe_float(get_whatsapp_cost_per_message(), 0.88)
+    return cost
 
 
 def _get_log_cost_currency(log: models.WhatsAppMessageLog) -> str:
@@ -63,68 +77,83 @@ def _get_log_billing_status(log: models.WhatsAppMessageLog) -> str:
     return getattr(log, "billing_status", None) or "estimated"
 
 
-def _is_billable_log(log: models.WhatsAppMessageLog) -> bool:
-    return str(log.status or "").strip().lower() in BILLABLE_STATUSES
-
-
 def _apply_send_result_to_log(
     *,
     log: models.WhatsAppMessageLog,
     result: dict,
 ) -> None:
-    success = bool(result.get("success"))
+    provider_id = result.get("provider_message_id")
+    success = bool(result.get("success")) and bool(provider_id)
 
     log.template_name = result.get("template_name")
     log.template_language = result.get("template_language")
     log.phone_number = result.get("normalized_phone") or log.phone_number
-    log.provider_message_id = result.get("provider_message_id")
+    log.provider_message_id = provider_id
     log.provider_response = safe_provider_response_text(result.get("provider_response"))
-
-    log.message_cost = _safe_float(result.get("message_cost"), 0.0)
     log.cost_currency = result.get("cost_currency") or get_whatsapp_cost_currency()
-    log.billing_status = result.get(
-        "billing_status",
-        "estimated" if success else "not_billable_failed",
-    )
 
     if success:
         log.status = "sent"
         log.error_message = None
         log.sent_at = datetime.now(timezone.utc)
+        result_cost = _safe_float(result.get("message_cost"), 0.0)
+        log.message_cost = result_cost if result_cost > 0.0 else _safe_float(get_whatsapp_cost_per_message(), 0.88)
+        log.billing_status = "estimated"
     else:
         log.status = "failed"
-        log.error_message = result.get("error_message") or "WhatsApp message failed"
+        log.error_message = result.get("error_message") or "WhatsApp Cloud API failed to dispatch message"
         log.sent_at = None
         log.message_cost = 0.0
         log.billing_status = "not_billable_failed"
 
 
 def _log_to_response(log: models.WhatsAppMessageLog) -> schemas.WhatsAppMessageLogResponse:
+    cust_name = "Unknown"
+    try:
+        if getattr(log, "customer", None):
+            cust_name = getattr(log.customer, "name", "Unknown")
+    except Exception:
+        pass
+
+    st_name = "Unknown"
+    try:
+        if getattr(log, "store", None):
+            st_name = getattr(log.store, "name", "Unknown")
+    except Exception:
+        pass
+
+    usr_name = "System"
+    try:
+        if getattr(log, "sent_by_user", None):
+            usr_name = getattr(log.sent_by_user, "username", "System")
+    except Exception:
+        pass
+
     return schemas.WhatsAppMessageLogResponse(
         id=log.id,
         store_id=log.store_id,
         customer_id=log.customer_id,
-        reward_entry_id=log.reward_entry_id,
+        reward_entry_id=getattr(log, "reward_entry_id", None),
         payout_id=getattr(log, "payout_id", None),
         message_type=getattr(log, "message_type", None) or "reward_points",
-        sent_by_user_id=log.sent_by_user_id,
-        customer_name=getattr(log.customer, "name", None),
-        store_name=getattr(log.store, "name", None),
-        sent_by_username=getattr(log.sent_by_user, "username", None),
-        phone_number=log.phone_number,
-        template_name=log.template_name,
-        template_language=log.template_language,
-        message_preview=log.message_preview,
+        sent_by_user_id=getattr(log, "sent_by_user_id", None),
+        customer_name=cust_name,
+        store_name=st_name,
+        sent_by_username=usr_name,
+        phone_number=log.phone_number or "",
+        template_name=log.template_name or "",
+        template_language=log.template_language or "",
+        message_preview=log.message_preview or "",
+        status=log.status or "pending",
+        provider_message_id=log.provider_message_id or "",
+        error_message=log.error_message or "",
         added_points=_safe_float(getattr(log, "added_points", 0.0), 0.0),
         redeemed_points=_safe_float(getattr(log, "redeemed_points", 0.0), 0.0),
-        payout_value=getattr(log, "payout_value", None),
-        total_points=_safe_float(log.total_points, 0.0),
+        payout_value=_safe_float(getattr(log, "payout_value", 0.0), 0.0),
+        total_points=_safe_float(getattr(log, "total_points", 0.0), 0.0),
         message_cost=_get_log_message_cost(log),
         cost_currency=_get_log_cost_currency(log),
         billing_status=_get_log_billing_status(log),
-        status=log.status,
-        provider_message_id=log.provider_message_id,
-        error_message=log.error_message,
         sent_at=log.sent_at,
         created_at=log.created_at,
     )
@@ -144,19 +173,19 @@ def _reward_send_response(
         reward_entry_id=reward_entry.id,
         payout_id=None,
         customer_id=customer.id,
-        customer_name=customer.name,
-        phone_number=log.phone_number,
+        customer_name=customer.name or "Unknown",
+        phone_number=log.phone_number or "",
         added_points=_safe_float(log.added_points, 0.0),
         redeemed_points=0.0,
-        payout_value=None,
+        payout_value=0.0,
         total_points=_safe_float(log.total_points, 0.0),
         message_cost=_get_log_message_cost(log),
         cost_currency=_get_log_cost_currency(log),
         billing_status=_get_log_billing_status(log),
-        status=log.status,
-        message_preview=log.message_preview,
-        provider_message_id=log.provider_message_id,
-        error_message=log.error_message,
+        status=log.status or "pending",
+        message_preview=log.message_preview or "",
+        provider_message_id=log.provider_message_id or "",
+        error_message=log.error_message or "",
         sent_at=log.sent_at,
     )
 
@@ -175,8 +204,8 @@ def _redemption_send_response(
         reward_entry_id=None,
         payout_id=payout.id,
         customer_id=customer.id,
-        customer_name=customer.name,
-        phone_number=log.phone_number,
+        customer_name=customer.name or "Unknown",
+        phone_number=log.phone_number or "",
         added_points=0.0,
         redeemed_points=_safe_float(log.redeemed_points, 0.0),
         payout_value=_safe_float(log.payout_value, 0.0),
@@ -184,10 +213,10 @@ def _redemption_send_response(
         message_cost=_get_log_message_cost(log),
         cost_currency=_get_log_cost_currency(log),
         billing_status=_get_log_billing_status(log),
-        status=log.status,
-        message_preview=log.message_preview,
-        provider_message_id=log.provider_message_id,
-        error_message=log.error_message,
+        status=log.status or "pending",
+        message_preview=log.message_preview or "",
+        provider_message_id=log.provider_message_id or "",
+        error_message=log.error_message or "",
         sent_at=log.sent_at,
     )
 
@@ -240,13 +269,16 @@ def send_welcome_whatsapp_core(
 
     store = None
     if customer.store_id is not None:
-        store = db.query(models.Store).filter(
-            models.Store.id == customer.store_id
-        ).first()
+        try:
+            store = db.query(models.Store).filter(
+                models.Store.id == customer.store_id
+            ).first()
+        except Exception:
+            pass
 
-    store_name = getattr(store, "name", None) or "AeroState Rewards"
-    custom_wa_phone_id = getattr(store, "custom_wa_phone_id", None) if store else None
-    custom_wa_access_token = getattr(store, "custom_wa_access_token", None) if store else None
+    store_name = store.name if store else "AeroState Rewards"
+    custom_wa_phone_id = store.custom_wa_phone_id if store else None
+    custom_wa_access_token = store.custom_wa_access_token if store else None
 
     existing_sent_log = db.query(models.WhatsAppMessageLog).filter(
         models.WhatsAppMessageLog.customer_id == customer.id,
@@ -315,15 +347,15 @@ def send_welcome_whatsapp_core(
         "log_id": log.id,
         "message_type": "welcome_message",
         "customer_id": customer.id,
-        "customer_name": customer.name,
-        "phone_number": log.phone_number,
+        "customer_name": customer.name or "Unknown",
+        "phone_number": log.phone_number or "",
         "message_cost": _get_log_message_cost(log),
         "cost_currency": _get_log_cost_currency(log),
         "billing_status": _get_log_billing_status(log),
-        "status": log.status,
-        "message_preview": log.message_preview,
-        "provider_message_id": log.provider_message_id,
-        "error_message": log.error_message,
+        "status": log.status or "pending",
+        "message_preview": log.message_preview or "",
+        "provider_message_id": log.provider_message_id or "",
+        "error_message": log.error_message or "",
         "sent_at": log.sent_at,
     }
 
@@ -369,13 +401,16 @@ def send_reward_entry_whatsapp_core(
 
     store = None
     if reward_entry.store_id is not None:
-        store = db.query(models.Store).filter(
-            models.Store.id == reward_entry.store_id
-        ).first()
+        try:
+            store = db.query(models.Store).filter(
+                models.Store.id == reward_entry.store_id
+            ).first()
+        except Exception:
+            pass
 
-    store_name = getattr(store, "name", None) or "AeroState Rewards"
-    custom_wa_phone_id = getattr(store, "custom_wa_phone_id", None) if store else None
-    custom_wa_access_token = getattr(store, "custom_wa_access_token", None) if store else None
+    store_name = store.name if store else "AeroState Rewards"
+    custom_wa_phone_id = store.custom_wa_phone_id if store else None
+    custom_wa_access_token = store.custom_wa_access_token if store else None
 
     existing_sent_log = db.query(models.WhatsAppMessageLog).filter(
         models.WhatsAppMessageLog.reward_entry_id == reward_entry.id,
@@ -497,13 +532,16 @@ def send_payout_whatsapp_core(
 
     store = None
     if payout.store_id is not None:
-        store = db.query(models.Store).filter(
-            models.Store.id == payout.store_id
-        ).first()
+        try:
+            store = db.query(models.Store).filter(
+                models.Store.id == payout.store_id
+            ).first()
+        except Exception:
+            pass
 
-    store_name = getattr(store, "name", None) or "AeroState Rewards"
-    custom_wa_phone_id = getattr(store, "custom_wa_phone_id", None) if store else None
-    custom_wa_access_token = getattr(store, "custom_wa_access_token", None) if store else None
+    store_name = store.name if store else "AeroState Rewards"
+    custom_wa_phone_id = store.custom_wa_phone_id if store else None
+    custom_wa_access_token = store.custom_wa_access_token if store else None
 
     existing_sent_log = db.query(models.WhatsAppMessageLog).filter(
         models.WhatsAppMessageLog.payout_id == payout.id,
@@ -715,8 +753,11 @@ def get_whatsapp_spend_summary(
 
     logs = query.all()
 
+    unit_cost = _safe_float(get_whatsapp_cost_per_message(), 0.88)
+    currency = get_whatsapp_cost_currency() or "INR"
+
     summary = {
-        "total_logs": 0,
+        "total_logs": len(logs),
         "total_messages": 0,
         "sent_messages": 0,
         "delivered_messages": 0,
@@ -731,42 +772,27 @@ def get_whatsapp_spend_summary(
         "reward_estimated_spend": 0.0,
         "redemption_estimated_spend": 0.0,
         "welcome_estimated_spend": 0.0,
-        "cost_per_message": get_whatsapp_cost_per_message(),
-        "cost_currency": get_whatsapp_cost_currency(),
+        "cost_per_message": unit_cost,
+        "cost_currency": currency,
         "billing_status": "estimated",
     }
 
     for log in logs:
         status_value = str(log.status or "pending").strip().lower()
-        message_type = str(
-            getattr(log, "message_type", None) or "reward_points"
-        ).strip().lower()
+        message_type = str(getattr(log, "message_type", None) or "reward_points").strip().lower()
 
-        cost = _get_log_message_cost(log)
-
-        summary["total_logs"] += 1
         summary["total_messages"] += 1
 
-        if status_value == "sent":
-            summary["sent_messages"] += 1
-        elif status_value == "delivered":
-            summary["delivered_messages"] += 1
-        elif status_value == "read":
-            summary["read_messages"] += 1
-        elif status_value == "failed":
+        if status_value in {"failed", "not_billable_failed"}:
             summary["failed_messages"] += 1
-        else:
-            summary["pending_messages"] += 1
+        elif _is_billable_log(log):
+            summary["sent_messages"] += 1
+            if status_value == "delivered":
+                summary["delivered_messages"] += 1
+            elif status_value == "read":
+                summary["read_messages"] += 1
 
-        # Categorize Message Types
-        if "redemption" in message_type or "payout" in message_type:
-            summary["redemption_messages"] += 1
-        elif "welcome" in message_type:
-            summary["welcome_messages"] += 1
-        else:
-            summary["reward_messages"] += 1
-
-        if status_value in BILLABLE_STATUSES:
+            cost = _get_log_message_cost(log)
             summary["billable_messages"] += 1
             summary["total_estimated_spend"] += cost
 
@@ -776,6 +802,16 @@ def get_whatsapp_spend_summary(
                 summary["welcome_estimated_spend"] += cost
             else:
                 summary["reward_estimated_spend"] += cost
+        else:
+            summary["pending_messages"] += 1
+
+        # Categorize by message type
+        if "redemption" in message_type or "payout" in message_type:
+            summary["redemption_messages"] += 1
+        elif "welcome" in message_type:
+            summary["welcome_messages"] += 1
+        else:
+            summary["reward_messages"] += 1
 
     summary["total_estimated_spend"] = round(summary["total_estimated_spend"], 2)
     summary["reward_estimated_spend"] = round(summary["reward_estimated_spend"], 2)

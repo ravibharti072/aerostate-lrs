@@ -1,0 +1,370 @@
+/* Inherits base directory framework */
+.directory-page {
+  flex-grow: 1;
+  padding: 24px;
+  padding-bottom: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background-color: #f6f8fa;
+  min-height: 100vh;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #0f172a;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.toast-notification {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.15);
+  text-align: center;
+}
+.toast-notification.success { background: #e6f3f0; color: #166962; border: 1px solid #166962; }
+.toast-notification.error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+/* Conversion Badge in Portal Header */
+.payout-conversion-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #f0f4f9;
+  color: #2d5696;
+  border: 0.5px solid #cbd5e1;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Stats Grid */
+.dir-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dir-modules-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px; 
+  margin-top: -12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Module Header Badge (Unified Blue #2d5696) */
+.dir-modules-section .module-writer-header .badge-count,
+.dir-modules-section .badge-count,
+.module-writer-badge {
+  color: #2d5696 !important;
+  background: #f0f4f9 !important;
+  border: 0.5px solid #cbd5e1 !important;
+}
+
+.dir-modules-section span[style*="color"] {
+  color: #2d5696 !important;
+}
+
+/* Primary Action Button (Unified Blue #2d5696) */
+.btn-submit {
+  background: #2d5696 !important;
+  color: #ffffff !important;
+  border: none !important;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.15s ease;
+  width: 100%;
+  height: 42px;
+}
+.btn-submit:hover { 
+  background: #234477 !important; 
+}
+.btn-submit:disabled { 
+  opacity: 0.6 !important; 
+  cursor: not-allowed !important; 
+}
+
+/* ==========================================================================
+   AMOUNT ASSIGNMENT 2-COLUMN GRID (MATCHES 4-STAT CARD DIVISION)
+   ========================================================================== */
+.asa-main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.settings-card {
+  background: #ffffff;
+  border: 0.5px solid #cbd5e1;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.02);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.settings-card-head {
+  padding: 16px 20px;
+  border-bottom: 0.5px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff;
+}
+
+.settings-card-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+.settings-card-icon.conversion {
+  background: #f0f4f9;
+  color: #2d5696;
+  border: 0.5px solid #cbd5e1;
+}
+.settings-card-icon.security {
+  background: #f0f4f9;
+  color: #2d5696;
+  border: 0.5px solid #cbd5e1;
+}
+
+.settings-card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.settings-card-subtitle {
+  margin: 3px 0 0;
+  color: #878e99;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.settings-card-body {
+  padding: 20px;
+  background: #ffffff;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+/* Left Card: Valuation Box */
+.asa-current-box {
+  background: #f8fafc;
+  border: 0.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.asa-rupee-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #f0f4f9;
+  color: #2d5696;
+  border: 0.5px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.asa-current-box p {
+  margin: 0;
+  color: #878e99;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.asa-current-box h3 {
+  margin: 3px 0 0;
+  color: #0f172a;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* Conversion Example Rows */
+.asa-example-box {
+  background: #f8fafc;
+  border: 0.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.asa-example-box h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.asa-example-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 0.5px solid #e2e8f0;
+  font-size: 13px;
+  color: #475569;
+  font-weight: 500;
+}
+.asa-example-row.last {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.asa-example-row strong {
+  color: #0f172a;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.asa-note-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #f0f4f9;
+  border: 0.5px solid #cbd5e1;
+  color: #2d5696;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: auto;
+}
+
+/* Right Card: Form Styling */
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-input {
+  width: 100%;
+  height: 40px;
+  border: 0.5px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+  color: #0f172a;
+  font-weight: 600;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+.settings-input:focus {
+  border-color: #2d5696;
+}
+
+.asa-amount-input-wrap {
+  position: relative;
+  width: 100%;
+}
+.asa-amount-input-wrap .currency-prefix {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #878e99;
+  font-weight: 700;
+  font-size: 14px;
+}
+.asa-amount-input-wrap input {
+  padding-left: 28px;
+}
+
+.password-input-wrap {
+  position: relative;
+  width: 100%;
+}
+.password-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #878e99;
+}
+
+.field-hint {
+  color: #878e99;
+  font-size: 11.5px;
+  font-weight: 500;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+.field-hint strong {
+  color: #0f172a;
+}
+
+.settings-actions {
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+/* ==========================================================================
+   RESPONSIVE BREAKPOINTS
+   ========================================================================== */
+@media (max-width: 1024px) {
+  .dir-stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .asa-main-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .dir-stats-grid { grid-template-columns: 1fr; }
+}

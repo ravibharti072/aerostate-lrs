@@ -1,4 +1,15 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float, Boolean, Text
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    ForeignKey,
+    DateTime,
+    Date,
+    Float,
+    Numeric,
+    Boolean,
+    Text,
+)
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
@@ -23,7 +34,7 @@ class Store(Base):
     city = Column(String, nullable=True)
     state = Column(String, nullable=True)
     pincode = Column(String, nullable=True)
-    
+
     # Custom WhatsApp Credentials
     custom_wa_phone_id = Column(String, nullable=True)
     custom_wa_access_token = Column(String, nullable=True)
@@ -58,6 +69,13 @@ class User(Base):
 
     role = Column(String, nullable=False)
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=True)
+
+    # Commercial Licensing & Subscription Columns
+    subscription_start = Column(Date, nullable=True)
+    subscription_end = Column(Date, nullable=True)
+    plan_name = Column(String(100), default="Aerostate Annual Standard", nullable=True)
+    setup_cost = Column(Numeric(10, 2), default=50000.00, nullable=True)
+    yearly_charge = Column(Numeric(10, 2), default=8000.00, nullable=True)
 
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -328,7 +346,7 @@ class WhatsAppMessageLog(Base):
     total_points = Column(Float, nullable=False, default=0.0)
 
     # WhatsApp message cost tracking.
-    # For now this is estimated cost based on configured provider rate.
+    # Estimated cost based on configured provider rate.
     # Example: 0.11 means ₹0.11 / 11 paisa per message.
     message_cost = Column(Float, nullable=False, default=0.11)
     cost_currency = Column(String, nullable=False, default="INR")
@@ -344,7 +362,6 @@ class WhatsAppMessageLog(Base):
     error_message = Column(Text, nullable=True)
 
     # Raw small provider response/error summary for debugging.
-    # Do not store access token or secrets here.
     provider_response = Column(Text, nullable=True)
 
     sent_at = Column(DateTime(timezone=True), nullable=True)

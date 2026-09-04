@@ -1,0 +1,360 @@
+* {
+  box-sizing: border-box;
+}
+
+/* =========================================================
+   SUPERADMIN SPLIT SCREEN WORKSPACE
+   ========================================================= */
+.sa-login-page {
+  width: 100%;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(460px, 1fr) minmax(460px, 1.1fr);
+  background-color: #0a1120;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #0f172a;
+  overflow-x: hidden;
+}
+
+/* =========================================================
+   LEFT BRANDING PANEL (#0a1120 SOLID)
+   ========================================================= */
+.sa-brand-panel {
+  min-height: 100vh;
+  background-color: #0a1120 !important;
+  background-image: none !important;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 56px;
+  position: relative;
+  overflow: hidden;
+}
+
+.sa-brand-content {
+  width: 100%;
+  max-width: 520px;
+  position: relative;
+  z-index: 1;
+}
+
+.sa-brand-main {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* Scaled Logo */
+.sa-logo-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 4px;
+}
+
+.sa-brand-logo-img {
+  width: auto;
+  height: 96px;
+  max-width: 320px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Left Typography */
+.sa-brand-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sa-brand-kicker {
+  margin: 0;
+  color: #60a5fa;
+  font-size: 14px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.sa-brand-content h1 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 34px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.sa-brand-text {
+  margin: 4px 0 0;
+  color: #94a3b8;
+  font-size: 15.5px;
+  line-height: 1.65;
+  font-weight: 500;
+  max-width: 480px;
+}
+
+/* =========================================================
+   RIGHT FORM PANEL
+   ========================================================= */
+.sa-form-panel {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 10% 15%, rgba(45, 86, 150, 0.08), transparent 30%),
+    radial-gradient(circle at 90% 85%, rgba(10, 17, 32, 0.04), transparent 40%),
+    #f4f6fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+}
+
+.sa-login-card {
+  width: 100%;
+  max-width: 460px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 40px;
+  box-shadow: 0 20px 48px rgba(10, 17, 32, 0.08);
+}
+
+/* Header */
+.sa-login-header {
+  margin-bottom: 28px;
+}
+
+.sa-login-header h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.sa-login-header p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+/* Form Styles */
+.sa-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sa-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.sa-field-group label {
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* Input Fields & Leading Icons */
+.sa-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sa-input-icon {
+  position: absolute;
+  left: 14px;
+  color: #94a3b8;
+  font-size: 16px;
+  pointer-events: none;
+  transition: color 0.15s ease;
+}
+
+.sa-input-wrap input {
+  width: 100%;
+  height: 44px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0 44px 0 40px;
+  outline: none;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 13.5px;
+  font-weight: 500;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.sa-input-wrap input::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.sa-input-wrap input:focus {
+  border-color: #2d5696;
+  box-shadow: 0 0 0 3px rgba(45, 86, 150, 0.12);
+}
+
+.sa-input-wrap:focus-within .sa-input-icon {
+  color: #2d5696;
+}
+
+/* Red Error Outlines */
+.sa-input-wrap.has-error input {
+  border-color: #ef4444;
+  background-color: #fffbfa;
+}
+
+.sa-input-wrap.has-error input:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+
+.sa-input-wrap.has-error .sa-input-icon {
+  color: #ef4444;
+}
+
+.sa-inline-error {
+  font-size: 12.5px;
+  color: #dc2626;
+  font-weight: 600;
+  margin-top: -4px;
+}
+
+/* Password Toggle */
+.sa-password-toggle {
+  position: absolute;
+  right: 6px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.sa-password-toggle:hover {
+  color: #334155;
+  background: #f1f5f9;
+}
+
+/* Action Button & Spinner (#2d5696) */
+.sa-login-btn {
+  width: 100%;
+  height: 44px;
+  border: none;
+  border-radius: 10px;
+  background: #2d5696;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+  box-shadow: 0 4px 14px rgba(45, 86, 150, 0.28);
+  transition: all 0.15s ease;
+}
+
+.sa-login-btn:hover:not(:disabled) {
+  background: #234477;
+  box-shadow: 0 6px 18px rgba(45, 86, 150, 0.36);
+  transform: translateY(-1px);
+}
+
+.sa-login-btn:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.sa-spinner {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Clean Security Footer */
+.sa-secure-note {
+  margin-top: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.sa-secure-note svg {
+  color: #94a3b8;
+}
+
+/* =========================================================
+   RESPONSIVE BREAKPOINTS
+   ========================================================= */
+@media (max-width: 1024px) {
+  .sa-login-page {
+    grid-template-columns: 1fr;
+  }
+
+  .sa-brand-panel {
+    min-height: auto;
+    padding: 48px 32px;
+  }
+
+  .sa-brand-content {
+    max-width: 600px;
+  }
+
+  .sa-form-panel {
+    min-height: auto;
+    padding: 40px 24px 64px;
+  }
+}
+
+@media (max-width: 540px) {
+  .sa-brand-panel {
+    padding: 36px 20px;
+  }
+
+  .sa-brand-logo-img {
+    height: 72px;
+  }
+
+  .sa-brand-content h1 {
+    font-size: 28px;
+  }
+
+  .sa-brand-text {
+    font-size: 14px;
+  }
+
+  .sa-form-panel {
+    padding: 24px 16px 48px;
+  }
+
+  .sa-login-card {
+    padding: 28px 20px;
+    border-radius: 16px;
+  }
+}

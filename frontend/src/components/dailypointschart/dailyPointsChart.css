@@ -1,0 +1,159 @@
+.daily-points-chart-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 380px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.chart-header h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.chart-header p {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* Toggle Group Styling */
+.chart-toggle-group {
+  display: flex;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: 10px;
+  gap: 4px;
+}
+
+.toggle-btn {
+  background: transparent;
+  border: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toggle-btn.active {
+  background: #ffffff;
+  color: #166962;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.chart-container {
+  display: flex;
+  height: 240px;
+  position: relative;
+  align-items: flex-end;
+  gap: 12px;
+  padding-top: 20px;
+  padding-bottom: 24px;
+}
+
+.chart-y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 600;
+  padding-bottom: 24px;
+  text-align: right;
+  width: 30px;
+  flex-shrink: 0;
+}
+
+.chart-bars-area {
+  display: flex;
+  flex-grow: 1;
+  height: 100%;
+  align-items: flex-end;
+  justify-content: space-between;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 0px;
+  gap: 4px;
+  position: relative;
+}
+
+.chart-bar-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-grow: 1;
+  height: 100%;
+  justify-content: flex-end;
+  position: relative;
+  cursor: pointer;
+}
+
+.chart-bar {
+  width: 100%;
+  max-width: 18px;
+  background: rgba(22, 105, 98, 0.2);
+  border-radius: 4px 4px 0 0;
+  transition: all 0.2s ease;
+}
+
+.chart-bar-column:hover .chart-bar,
+.chart-bar.active {
+  background: #166962;
+  box-shadow: 0 0 10px rgba(22, 105, 98, 0.3);
+}
+
+.chart-x-label {
+  position: absolute;
+  bottom: -22px;
+  font-size: 9px;
+  color: #64748b;
+  white-space: nowrap;
+  font-weight: 600;
+  text-align: center;
+}
+
+.chart-tooltip {
+  position: absolute;
+  top: -45px;
+  background: #0f172a;
+  color: #ffffff;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.tooltip-date {
+  font-size: 9px;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.tooltip-points {
+  font-weight: 700;
+  color: #38bdf8;
+}

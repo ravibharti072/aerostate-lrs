@@ -1,3 +1,4 @@
+from datetime import datetime, date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -151,6 +152,11 @@ def create_client(
         password_hash=get_password_hash(user.password),
         role="Admin",
         store_id=user.store_id,
+        subscription_start=getattr(user, "subscription_start", None) or datetime.utcnow().date(),
+        subscription_end=getattr(user, "subscription_end", None),
+        plan_name=getattr(user, "plan_name", "Aerostate Annual Standard"),
+        setup_cost=getattr(user, "setup_cost", 50000.00),
+        yearly_charge=getattr(user, "yearly_charge", 8000.00),
     )
 
     if hasattr(db_user, "is_active"):
@@ -194,19 +200,12 @@ def get_all_users_for_superadmin(
 @router.put("/users/{user_id}")
 def update_admin_user_by_superadmin(
     user_id: int,
-    update_data: schemas.UserUpdateRequest,
+    payload: dict,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     require_roles(current_user, ["SuperAdmin"])
-
     superadmin = get_current_db_user(db, current_user)
-
-    if not verify_password(update_data.superadmin_password, superadmin.password_hash):
-        raise HTTPException(
-            status_code=401,
-            detail="Incorrect SuperAdmin password",
-        )
 
     target_user = db.query(models.User).filter(
         models.User.id == user_id
@@ -216,6 +215,66 @@ def update_admin_user_by_superadmin(
         raise HTTPException(
             status_code=404,
             detail="User not found",
+        )
+
+    # 1. SUBSCRIPTION & LICENSING UPDATE FLOW (From Subscriptions Modal)
+    if "subscription_end" in payload or "setup_cost" in payload or "yearly_charge" in payload:
+        if target_user.id == superadmin.id or is_superadmin_role(target_user.role):
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot alter SuperAdmin master license terms",
+            )
+
+        if "plan_name" in payload and payload["plan_name"]:
+            target_user.plan_name = payload["plan_name"]
+
+        if "setup_cost" in payload and payload["setup_cost"] is not None:
+            target_user.setup_cost = payload["setup_cost"]
+
+        if "yearly_charge" in payload and payload["yearly_charge"] is not None:
+            target_user.yearly_charge = payload["yearly_charge"]
+
+        if "subscription_start" in payload and payload["subscription_start"]:
+            if isinstance(payload["subscription_start"], str):
+                target_user.subscription_start = datetime.strptime(
+                    payload["subscription_start"].strip(), "%Y-%m-%d"
+                ).date()
+            else:
+                target_user.subscription_start = payload["subscription_start"]
+
+        if "subscription_end" in payload and payload["subscription_end"]:
+            if isinstance(payload["subscription_end"], str):
+                parsed_end = datetime.strptime(
+                    payload["subscription_end"].strip(), "%Y-%m-%d"
+                ).date()
+            else:
+                parsed_end = payload["subscription_end"]
+            
+            target_user.subscription_end = parsed_end
+
+            # Check if plan date has passed
+            if parsed_end and datetime.utcnow().date() > parsed_end:
+                target_user.is_active = False
+            elif "is_active" in payload and payload["is_active"] is not None:
+                target_user.is_active = bool(payload["is_active"])
+        elif "is_active" in payload and payload["is_active"] is not None:
+            target_user.is_active = bool(payload["is_active"])
+
+        db.commit()
+        db.refresh(target_user)
+
+        return {
+            "message": "Subscription & license details updated successfully",
+            "user": serialize_user(target_user, db),
+        }
+
+    # 2. STANDARD CREDENTIALS UPDATE FLOW (Requires SuperAdmin Password)
+    update_data = schemas.UserUpdateRequest(**payload)
+
+    if not verify_password(update_data.superadmin_password, superadmin.password_hash):
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect SuperAdmin password",
         )
 
     if target_user.id == superadmin.id or is_superadmin_role(target_user.role):

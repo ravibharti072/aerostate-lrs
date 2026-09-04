@@ -1,6 +1,6 @@
 from pydantic import BaseModel, model_validator, Field
 from typing import Optional, List, Any
-from datetime import datetime
+from datetime import datetime, date
 
 
 # ----------------------------------------
@@ -64,7 +64,7 @@ class StoreResponse(BaseModel):
 
 
 # ----------------------------------------
-# USER SCHEMAS
+# USER & SUBSCRIPTION SCHEMAS
 # ----------------------------------------
 class UserCreate(BaseModel):
     username: str
@@ -72,6 +72,11 @@ class UserCreate(BaseModel):
     store_id: Optional[int] = None
     role: Optional[str] = None
     is_active: Optional[bool] = True
+    subscription_start: Optional[date] = None
+    subscription_end: Optional[date] = None
+    plan_name: Optional[str] = "Aerostate Annual Standard"
+    setup_cost: Optional[float] = 50000.00
+    yearly_charge: Optional[float] = 8000.00
 
 
 class UserListResponse(BaseModel):
@@ -83,6 +88,13 @@ class UserListResponse(BaseModel):
     is_active: Optional[bool] = True
     created_at: Optional[datetime] = None
 
+    # Subscription & Commercial Billing Fields
+    subscription_start: Optional[date] = None
+    subscription_end: Optional[date] = None
+    plan_name: Optional[str] = "Aerostate Annual Standard"
+    setup_cost: Optional[float] = 50000.00
+    yearly_charge: Optional[float] = 8000.00
+
     class Config:
         from_attributes = True
 
@@ -91,7 +103,21 @@ class UserUpdateRequest(BaseModel):
     new_username: Optional[str] = None
     new_password: Optional[str] = None
     is_active: Optional[bool] = None
+    subscription_start: Optional[date] = None
+    subscription_end: Optional[date] = None
+    plan_name: Optional[str] = None
+    setup_cost: Optional[float] = None
+    yearly_charge: Optional[float] = None
     superadmin_password: str
+
+
+class SubscriptionUpdateRequest(BaseModel):
+    plan_name: Optional[str] = "Aerostate Annual Standard"
+    subscription_start: Optional[date] = None
+    subscription_end: Optional[date] = None
+    setup_cost: Optional[float] = 50000.00
+    yearly_charge: Optional[float] = 8000.00
+    is_active: Optional[bool] = True
 
 
 class UserDeleteRequest(BaseModel):
@@ -307,8 +333,6 @@ class LoyaltyItemResponse(BaseModel):
 
 # ----------------------------------------
 # OLD POINT ASSIGNMENT SCHEMAS
-# Kept for backward compatibility.
-# New flow should use Reward Entry.
 # ----------------------------------------
 class PointAssignRequest(BaseModel):
     customer_id: int
@@ -328,14 +352,11 @@ class ManualPointRequest(BaseModel):
 # ----------------------------------------
 class RewardEntryItemCreate(BaseModel):
     loyalty_item_id: Optional[int] = None
-
-    # Frontend sometimes sends item_id.
     item_id: Optional[int] = None
 
     unit: str
     quantity: float
 
-    # Backend calculates from Item Master, so optional.
     points_per_unit: Optional[float] = 0.0
     total_points: Optional[float] = 0.0
 
@@ -355,8 +376,6 @@ class RewardEntryItemCreate(BaseModel):
 
 class RewardEntryItemAdd(BaseModel):
     loyalty_item_id: Optional[int] = None
-
-    # Frontend may send item_id.
     item_id: Optional[int] = None
 
     unit: str
@@ -367,7 +386,6 @@ class RewardEntryItemAdd(BaseModel):
 
     note: Optional[str] = None
 
-    # Optional date support.
     entry_date: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
@@ -392,13 +410,10 @@ class RewardEntryBulkCreate(BaseModel):
     customer_id: int
     items: List[RewardEntryItemCreate]
 
-    # Optional manual old entry date from frontend.
     entry_date: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
-    # Backend calculates this, so optional.
     total_points: Optional[float] = 0.0
-
     note: Optional[str] = None
 
     @model_validator(mode="after")
@@ -410,15 +425,12 @@ class RewardEntryBulkCreate(BaseModel):
 
 class RewardEntryItemUpdate(BaseModel):
     loyalty_item_id: Optional[int] = None
-
-    # Frontend may send item_id.
     item_id: Optional[int] = None
 
     unit: str
     quantity: float
     note: Optional[str] = None
 
-    # Optional date edit from Transaction History.
     entry_date: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
@@ -482,7 +494,6 @@ class RewardEntryListRowResponse(BaseModel):
     item_id: Optional[int] = None
     item_name: Optional[str] = None
 
-    # Needed for Transaction History edit.
     transaction_id: Optional[int] = None
     point_transaction_id: Optional[int] = None
     reward_entry_item_id: Optional[int] = None
@@ -541,8 +552,6 @@ class RewardEntryGroupedResponse(BaseModel):
 
 # ----------------------------------------
 # TRANSACTION HISTORY SCHEMAS
-# Old frontend name: Points History
-# New frontend name: Transaction History
 # ----------------------------------------
 class PointTransactionResponse(BaseModel):
     id: int
@@ -550,14 +559,12 @@ class PointTransactionResponse(BaseModel):
     customer_id: int
     loyalty_item_id: Optional[int] = None
 
-    # Needed for editing product / unit / quantity.
     reward_entry_item_id: Optional[int] = None
     reward_entry_id: Optional[int] = None
     point_transaction_id: Optional[int] = None
 
     transaction_type: str
 
-    # Frontend compatibility.
     type: Optional[str] = None
     description: Optional[str] = None
 
@@ -570,22 +577,16 @@ class PointTransactionResponse(BaseModel):
         from_attributes = True
 
 
-# Kept only for old/manual transaction editing compatibility.
-# New Reward Entry edit should use RewardEntryItemUpdate.
 class PointTransactionUpdate(BaseModel):
     customer_id: int
     points: float
 
-    # Frontend sends type as POINTS_CREDIT / POINTS_DEBIT.
     type: Optional[str] = None
-
-    # Backend compatibility.
     transaction_type: Optional[str] = None
 
     note: Optional[str] = None
     description: Optional[str] = None
 
-    # Optional future date edit support for manual transactions.
     entry_date: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
@@ -615,7 +616,6 @@ class PayoutResponse(BaseModel):
     store_id: Optional[int] = None
     customer_id: int
 
-    # Optional frontend-friendly fields.
     customer_name: Optional[str] = None
     phone_number: Optional[str] = None
     points_balance: Optional[float] = None
@@ -660,14 +660,10 @@ class PointValueUpdate(BaseModel):
 # WHATSAPP MESSAGE SCHEMAS
 # ----------------------------------------
 class WhatsAppRewardSendRequest(BaseModel):
-    # By default, block duplicate send if already sent.
-    # Frontend can pass allow_resend=True only after user confirms resend.
     allow_resend: Optional[bool] = False
 
 
 class WhatsAppRedemptionSendRequest(BaseModel):
-    # By default, block duplicate send if already sent.
-    # Frontend can pass allow_resend=True only after user confirms resend.
     allow_resend: Optional[bool] = False
 
 
@@ -689,8 +685,6 @@ class WhatsAppRewardSendResponse(BaseModel):
     payout_value: Optional[float] = None
     total_points: float
 
-    # WhatsApp cost tracking.
-    # Example: message_cost 0.11 means ₹0.11 / 11 paisa.
     message_cost: Optional[float] = 0.0
     cost_currency: Optional[str] = "INR"
     billing_status: Optional[str] = "estimated"
@@ -724,8 +718,6 @@ class WhatsAppRedemptionSendResponse(BaseModel):
     payout_value: Optional[float] = None
     total_points: float
 
-    # WhatsApp cost tracking.
-    # Example: message_cost 0.11 means ₹0.11 / 11 paisa.
     message_cost: Optional[float] = 0.0
     cost_currency: Optional[str] = "INR"
     billing_status: Optional[str] = "estimated"
@@ -750,7 +742,6 @@ class WhatsAppMessageLogResponse(BaseModel):
     reward_entry_id: Optional[int] = None
     payout_id: Optional[int] = None
 
-    # reward_points / redemption_points / welcome_message
     message_type: Optional[str] = "reward_points"
 
     sent_by_user_id: Optional[int] = None
@@ -771,13 +762,10 @@ class WhatsAppMessageLogResponse(BaseModel):
     payout_value: Optional[float] = None
     total_points: float = 0.0
 
-    # WhatsApp cost tracking.
-    # Backend should count cost mainly for sent/delivered/read messages.
     message_cost: Optional[float] = 0.0
     cost_currency: Optional[str] = "INR"
     billing_status: Optional[str] = "estimated"
 
-    # pending, sent, delivered, read, failed
     status: str
 
     provider_message_id: Optional[str] = None
@@ -807,14 +795,14 @@ class WhatsAppSpendSummaryResponse(BaseModel):
 
     reward_messages: int = 0
     redemption_messages: int = 0
-    welcome_messages: int = 0  # Added field
+    welcome_messages: int = 0
 
     billable_messages: int = 0
 
     total_estimated_spend: float = 0.0
     reward_estimated_spend: float = 0.0
     redemption_estimated_spend: float = 0.0
-    welcome_estimated_spend: float = 0.0 # Added field
+    welcome_estimated_spend: float = 0.0
 
     cost_per_message: float = 0.11
     cost_currency: str = "INR"

@@ -1,0 +1,138 @@
+.points-hero-card-dark {
+  background: #0a1120;
+  border-radius: 24px;
+  padding: 36px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #ffffff;
+  box-shadow: 0 10px 30px rgba(10, 17, 32, 0.3);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.hero-dark-left {
+  display: flex;
+  flex-direction: column;
+  max-width: 620px;
+}
+
+.hero-dark-kicker {
+  font-size: 11px;
+  font-weight: 800;
+  color: #8b8b9b;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.hero-dark-main-val {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.hero-dark-main-val h2 {
+  margin: 0;
+  font-size: 44px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -1px;
+}
+
+.pts-label {
+  font-size: 20px;
+  font-weight: 600;
+  color: #8b8b9b;
+}
+
+.hero-dark-sub {
+  margin: 0 0 16px 0;
+  font-size: 13.5px;
+  color: #8b8b9b;
+  line-height: 1.5;
+}
+
+.trend-pill-green {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(22, 105, 98, 0.25);
+  color: #5eead4;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 20px;
+}
+
+.hero-dark-right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 20px;
+}
+
+.circular-progress-wrap {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.circular-gauge {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.circle-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 3.2;
+}
+
+.circle-fill {
+  fill: none;
+  stroke: #166962; 
+  stroke-width: 3.2;
+  stroke-linecap: round;
+}
+
+.circular-gauge-content {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.gauge-percent {
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.1;
+}
+
+.gauge-sub {
+  font-size: 9px;
+  font-weight: 600;
+  color: #8b8b9b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+@media (max-width: 768px) {
+  .points-hero-card-dark { 
+    flex-direction: column; 
+    align-items: flex-start; 
+    gap: 24px; 
+    padding: 24px; 
+  }
+  .hero-dark-right { 
+    padding-right: 0; 
+    align-self: center; 
+  }
+}

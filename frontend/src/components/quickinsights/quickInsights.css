@@ -1,0 +1,103 @@
+.quick-insights-card {
+  background: #ffffff;
+  border-radius: 24px;
+  /* Reduced horizontal padding slightly to give the 2 columns more breathing room */
+  padding: 32px 24px 24px 24px; 
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+  border: 1px solid #eef2f6;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.qi-header {
+  margin-bottom: 24px;
+}
+
+.qi-header h3 {
+  margin: 0 0 6px 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.qi-header p {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* --- Changed to a 2-Column Grid --- */
+.qi-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px 12px; 
+  flex-grow: 1;
+  align-content: center;
+}
+
+.qi-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0; /* Ensures the text truncate works inside a grid cell */
+}
+
+.qi-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* --- Reusable Generic Color Themes --- */
+.qi-icon.theme-orange { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+.qi-icon.theme-navy   { background: rgba(45, 86, 150, 0.1); color: #2d5696; }
+.qi-icon.theme-blue   { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+.qi-icon.theme-green  { background: rgba(22, 105, 98, 0.1); color: #166962; }
+.qi-icon.theme-purple { background: rgba(123, 57, 237, 0.1); color: #7b39ed; }
+.qi-icon.theme-red    { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+.qi-icon.theme-default{ background: rgba(148, 163, 184, 0.1); color: #64748b; }
+
+.qi-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.qi-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qi-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Fall back to a single column if the screen squishes the grid too tight */
+@media (max-width: 1200px) {
+  .qi-list {
+    grid-template-columns: 1fr; 
+  }
+}

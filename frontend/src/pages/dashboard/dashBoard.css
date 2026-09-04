@@ -1,0 +1,314 @@
+.dashboard-page {
+  flex-grow: 1;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background-color: #EEF0F3;
+  min-height: 100vh;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #0f172a;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* --- Header Actions & Search Dropdown --- */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-search-container {
+  position: relative; 
+}
+
+.header-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  padding: 10px 16px;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+  width: 300px;
+  border: 1px solid transparent;
+  background-image: linear-gradient(#ffffff, #ffffff), linear-gradient(90deg, rgba(45, 86, 150, 0) 0%, rgba(45, 86, 150, 0.6) 50%, rgba(45, 86, 150, 0) 100%);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  transition: all 0.2s ease;
+}
+
+.header-search-bar:focus-within {
+  border-color: #2d5696; 
+  box-shadow: 0 4px 12px rgba(45, 86, 150, 0.15);
+  background-image: none;
+  border: 1px solid #2d5696;
+}
+
+.header-search-bar .search-icon {
+  color: #2d5696;
+  flex-shrink: 0;
+}
+
+.header-search-bar input {
+  border: none;
+  background: transparent;
+  outline: none;
+  width: 100%;
+  font-size: 13px;
+  color: #0f172a;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.header-search-bar input::placeholder {
+  color: #94a3b8;
+}
+
+/* --- Multi-Category Search Dropdown Styles --- */
+.header-search-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e2e8f0;
+  z-index: 100;
+  padding: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.search-category {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+
+.search-category:last-child {
+  margin-bottom: 0;
+}
+
+.search-category-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 12px 4px 12px;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.search-result-item:hover {
+  background: rgba(45, 86, 150, 0.05);
+}
+
+.search-result-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(45, 86, 150, 0.1);
+  color: #2d5696;
+  flex-shrink: 0;
+}
+
+.search-result-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.sr-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.search-result-item:hover .sr-title {
+  color: #2d5696;
+}
+
+.sr-sub {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.search-no-results {
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* --- Time Widget --- */
+.time-widget {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #ffffff; 
+  padding: 10px 18px;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+  white-space: nowrap; 
+  flex-shrink: 0;      
+  border: 1px solid transparent;
+  background-image: linear-gradient(#ffffff, #ffffff), linear-gradient(90deg, rgba(45, 86, 150, 0) 0%, rgba(45, 86, 150, 0.6) 50%, rgba(45, 86, 150, 0) 100%);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+.time-icon {
+  color: #2d5696; 
+}
+
+.time-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.date {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.time {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+/* --- Grid Layouts (Strictly 70% Left / 30% Right) --- */
+.top-dashboard-row {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+  gap: 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.hero-section-wrapper,
+.insights-wrapper {
+  display: flex;
+  width: 100%;
+}
+
+.analytics-section-row {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 7fr);
+  gap: 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.chart-container-wrapper,
+.side-insights-wrapper {
+  display: flex;
+  width: 100%;
+}
+
+/* --- 3-Card Bottom Layout --- */
+.dashboard-bottom-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* --- Operations Row (40/60 Split) --- */
+.operations-row {
+  display: grid;
+  grid-template-columns: 4fr 6fr; /* 40% Left / 60% Right */
+  gap: 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ops-col-left {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.ops-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 24px; /* Gap between the stacked cards */
+  height: 100%;
+}
+
+.ops-stacked-card {
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  flex: 1; /* Ensures both stacked cards share height equally */
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.ops-stacked-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+  border-color: #f1f5f9;
+}
+
+.ops-stacked-card h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #1a1f36;
+  font-weight: 600;
+}
+
+.ops-stacked-card .subtitle {
+  margin: 4px 0 0 0;
+  font-size: 12px;
+  color: #8792a2;
+}
+
+/* --- Responsiveness --- */
+@media (max-width: 1024px) {
+  .top-dashboard-row,
+  .analytics-section-row { grid-template-columns: 1fr; }
+  .dashboard-bottom-grid { grid-template-columns: repeat(2, 1fr); }
+  .operations-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .dashboard-page { padding: 16px; }
+  .dashboard-bottom-grid { grid-template-columns: 1fr; }
+  .header-actions {
+    flex-direction: column;
+    width: 100%;
+    align-items: stretch;
+  }
+  .header-search-container {
+    width: 100%;
+  }
+  .header-search-bar {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}

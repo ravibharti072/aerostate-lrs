@@ -1,13 +1,14 @@
 import axios from "axios";
 
-// Fallback directly to port 8000 if VITE_API_URL is missing
+// Automatically uses .env.development in dev, and .env.production in build
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:8000";
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? "http://localhost:8000" : "http://43.204.222.227:8000");
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 20000,
-  withCredentials: true, // Ensures cookies/session headers are sent correctly
+  withCredentials: true,
 });
 
 api.interceptors.request.use(
@@ -29,10 +30,15 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Only clear storage on 401 if it's a genuine expired token, 
-    // preventing aggressive loops if an endpoint fails due to CORS/Network errors
-    if (error?.response?.status === 401) {
-      console.warn("Unauthorized request (401). Clearing session tokens.");
+    const requestUrl = error?.config?.url || "";
+
+    const isLoginEndpoint =
+      requestUrl.includes("/token") ||
+      requestUrl.includes("/login") ||
+      requestUrl.includes("/auth");
+
+    if (error?.response?.status === 401 && !isLoginEndpoint) {
+      console.warn("Session expired (401). Clearing stored tokens.");
       localStorage.removeItem("aerostate_loyalty_token");
       localStorage.removeItem("aerostate_loyalty_user");
       localStorage.removeItem("token");

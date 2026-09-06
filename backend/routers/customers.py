@@ -36,14 +36,21 @@ def create_customer(
 
     store_id = resolve_store_id(customer.store_id, current_user, db)
 
-    existing_customer = db.query(models.Customer).filter(
-        models.Customer.phone_number == customer.phone_number
-    ).first()
+    # Check only within the same store, ignoring soft-deleted customers
+    query = db.query(models.Customer).filter(
+        models.Customer.store_id == store_id,
+        models.Customer.phone_number == customer.phone_number,
+    )
+
+    if hasattr(models.Customer, "is_active"):
+        query = query.filter(models.Customer.is_active == True)
+
+    existing_customer = query.first()
 
     if existing_customer:
         raise HTTPException(
             status_code=400,
-            detail="Customer with this phone number already exists",
+            detail="Customer with this phone number already exists in this store",
         )
 
     db_customer = models.Customer(
@@ -103,9 +110,12 @@ def read_customers(
     if active_only is not None and hasattr(models.Customer, "is_active"):
         query = query.filter(models.Customer.is_active == active_only)
 
-    return query.order_by(
-        models.Customer.id.desc()
-    ).offset(skip).limit(limit).all()
+    return (
+        query.order_by(models.Customer.id.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 @router.get("/customers/{customer_id}", response_model=schemas.CustomerResponse)
@@ -135,15 +145,22 @@ def update_customer(
     update_data = customer_data.model_dump(exclude_unset=True)
 
     if "phone_number" in update_data:
-        existing_customer = db.query(models.Customer).filter(
+        # Check uniqueness within the same store, excluding self and inactive records
+        query = db.query(models.Customer).filter(
+            models.Customer.store_id == customer.store_id,
             models.Customer.phone_number == update_data["phone_number"],
             models.Customer.id != customer_id,
-        ).first()
+        )
+
+        if hasattr(models.Customer, "is_active"):
+            query = query.filter(models.Customer.is_active == True)
+
+        existing_customer = query.first()
 
         if existing_customer:
             raise HTTPException(
                 status_code=400,
-                detail="Another customer already uses this phone number",
+                detail="Another active customer already uses this phone number in this store",
             )
 
     for key, value in update_data.items():

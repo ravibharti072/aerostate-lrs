@@ -9,6 +9,7 @@ from sqlalchemy import (
     Numeric,
     Boolean,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -99,7 +100,7 @@ class Customer(Base):
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=True)
 
     name = Column(String, nullable=False)
-    phone_number = Column(String, unique=True, nullable=False)
+    phone_number = Column(String, index=True, nullable=False)
     address = Column(String, nullable=True)
     aadhaar_number = Column(String, nullable=True)
     pan_number = Column(String, nullable=True)
@@ -111,6 +112,11 @@ class Customer(Base):
 
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Ensure a customer's phone number is unique per store
+    __table_args__ = (
+        UniqueConstraint("store_id", "phone_number", name="uq_store_customer_phone"),
+    )
 
     store = relationship("Store", back_populates="customers")
     reward_entries = relationship("RewardEntry", back_populates="customer")
@@ -332,7 +338,6 @@ class WhatsAppMessageLog(Base):
     template_language = Column(String, nullable=True, default="en")
 
     # Message preview saved for history/report.
-    # Actual WhatsApp API sends approved template variables.
     message_preview = Column(Text, nullable=True)
 
     # Reward transaction values at sending time
@@ -345,9 +350,7 @@ class WhatsAppMessageLog(Base):
     # Customer total balance after transaction
     total_points = Column(Float, nullable=False, default=0.0)
 
-    # WhatsApp message cost tracking.
-    # Estimated cost based on configured provider rate.
-    # Example: 0.11 means ₹0.11 / 11 paisa per message.
+    # WhatsApp message cost tracking
     message_cost = Column(Float, nullable=False, default=0.11)
     cost_currency = Column(String, nullable=False, default="INR")
     billing_status = Column(String, nullable=False, default="estimated")

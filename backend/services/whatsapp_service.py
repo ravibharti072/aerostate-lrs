@@ -209,10 +209,6 @@ def _send_whatsapp_template(
     custom_phone_number_id: Optional[str] = None,
     custom_access_token: Optional[str] = None,
 ) -> Dict[str, Any]:
-    # Fallback to .env central number if store credentials are not passed
-    phone_number_id = (custom_phone_number_id or os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")).strip()
-    access_token = (custom_access_token or os.getenv("WHATSAPP_ACCESS_TOKEN", "")).strip()
-
     normalized_phone = normalize_indian_phone(to_phone_number)
 
     if not normalized_phone:
@@ -227,6 +223,30 @@ def _send_whatsapp_template(
             normalized_phone=normalized_phone,
             template_category=template_category,
         )
+
+    clean_custom_phone_id = str(custom_phone_number_id or "").strip()
+    clean_custom_token = str(custom_access_token or "").strip()
+
+    # Prioritize store-configured custom credentials
+    if clean_custom_phone_id or clean_custom_token:
+        if not clean_custom_phone_id or not clean_custom_token:
+            return _base_response(
+                success=False,
+                status="failed",
+                error_message="Incomplete store custom credentials. Both Custom Phone ID and Access Token are required.",
+                provider_message_id=None,
+                provider_response=None,
+                template_name=template_name,
+                template_language=template_language,
+                normalized_phone=normalized_phone,
+                template_category=template_category,
+            )
+        phone_number_id = clean_custom_phone_id
+        access_token = clean_custom_token
+    else:
+        # Fall back to global company credentials
+        phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "").strip()
+        access_token = os.getenv("WHATSAPP_ACCESS_TOKEN", "").strip()
 
     if whatsapp_mock_enabled():
         return _base_response(
@@ -396,7 +416,7 @@ def send_welcome_whatsapp(
         {
             "type": "text",
             "text": str(store_name),
-        }
+        },
     ]
 
     return _send_whatsapp_template(
